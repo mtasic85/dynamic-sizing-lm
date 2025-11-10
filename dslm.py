@@ -106,114 +106,133 @@ def cmd_gen(args):
 
 def cmd_up(args):
     """Handle the 'up' subcommand for upscaling models."""
+    print(f"Upscaling model: {args.input}")
+    print(f"Embedding dimension multiplier: {args.embed_dim_multiplier}")
+    print(f"Up projection multiplier: {args.up_proj_multiplier}")
+
+    # Validate multipliers are integers
+    if (
+        not isinstance(args.embed_dim_multiplier, int)
+        or args.embed_dim_multiplier < 1
+    ):
+        raise ValueError("embed_dim_multiplier must be a positive integer")
+
+    if not isinstance(args.up_proj_multiplier, int) or args.up_proj_multiplier < 1:
+        raise ValueError("up_proj_multiplier must be a positive integer")
+
+    # Load and describe input model
+    print("\n" + "=" * 60)
+    print("INPUT MODEL DESCRIPTION")
+    print("=" * 60)
+    input_model = AutoModelForCausalLM.from_pretrained(
+        args.input, trust_remote_code=True, dtype=torch.float32
+    )
+    print(input_model)
+    input_param_count = count_parameters(input_model)
+    print(
+        f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
+    )
+
+    # Upscale the model
+    print("\n" + "=" * 60)
+    print("UPSCALING...")
+    print("=" * 60)
+    upscaled_model, output_path = upscale_model(
+        model_path=args.input,
+        embed_dim_multiplier=args.embed_dim_multiplier,
+        up_proj_multiplier=args.up_proj_multiplier,
+        output_path=args.output,
+        snr_db=getattr(args, "snr_db", None),
+    )
+
+    # Save the model
+    print(f"Saving upscaled model to: {output_path}")
+    upscaled_model.save_pretrained(output_path)
+
+    # Also save tokenizer if it exists
     try:
-        print(f"Upscaling model: {args.input}")
-        print(f"Embedding dimension multiplier: {args.embed_dim_multiplier}")
-        print(f"Up projection multiplier: {args.up_proj_multiplier}")
-
-        # Validate multipliers are integers
-        if (
-            not isinstance(args.embed_dim_multiplier, int)
-            or args.embed_dim_multiplier < 1
-        ):
-            raise ValueError("embed_dim_multiplier must be a positive integer")
-
-        if not isinstance(args.up_proj_multiplier, int) or args.up_proj_multiplier < 1:
-            raise ValueError("up_proj_multiplier must be a positive integer")
-
-        # Load and describe input model
-        print("\n" + "=" * 60)
-        print("INPUT MODEL DESCRIPTION")
-        print("=" * 60)
-        input_model = AutoModelForCausalLM.from_pretrained(
-            args.input, trust_remote_code=True, dtype=torch.float32
-        )
-        print(input_model)
-        input_param_count = count_parameters(input_model)
-        print(
-            f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
-        )
-
-        # Upscale the model
-        print("\n" + "=" * 60)
-        print("UPSCALING...")
-        print("=" * 60)
-        upscaled_model, output_path = upscale_model(
-            model_path=args.input,
-            embed_dim_multiplier=args.embed_dim_multiplier,
-            up_proj_multiplier=args.up_proj_multiplier,
-            output_path=args.output,
-            snr_db=getattr(args, "snr_db", None),
-        )
-
-        # Save the model
-        print(f"Saving upscaled model to: {output_path}")
-        upscaled_model.save_pretrained(output_path)
-
-        # Also save tokenizer if it exists
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(args.input)
-            tokenizer.save_pretrained(output_path)
-            print("Tokenizer saved successfully")
-        except Exception as e:
-            print(f"Warning: Could not save tokenizer: {e}")
-
-        # Load and describe output model
-        print("\n" + "=" * 60)
-        print("OUTPUT MODEL DESCRIPTION")
-        print("=" * 60)
-        output_model = AutoModelForCausalLM.from_pretrained(
-            output_path, trust_remote_code=True, dtype=torch.float32
-        )
-        print(output_model)
-        output_param_count = count_parameters(output_model)
-        print(
-            f"\nOutput model total parameters: {format_parameter_count(output_param_count)}"
-        )
-
-        print("\n" + "=" * 60)
-        print("UPSCALING COMPLETED SUCCESSFULLY!")
-        print("=" * 60)
-
+        tokenizer = AutoTokenizer.from_pretrained(args.input)
+        tokenizer.save_pretrained(output_path)
+        print("Tokenizer saved successfully")
     except Exception as e:
-        print(f"Error during upscaling: {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"Warning: Could not save tokenizer: {e}")
+
+    # Load and describe output model
+    print("\n" + "=" * 60)
+    print("OUTPUT MODEL DESCRIPTION")
+    print("=" * 60)
+    output_model = AutoModelForCausalLM.from_pretrained(
+        output_path, trust_remote_code=True, dtype=torch.float32
+    )
+    print(output_model)
+    output_param_count = count_parameters(output_model)
+    print(
+        f"\nOutput model total parameters: {format_parameter_count(output_param_count)}"
+    )
+
+    print("\n" + "=" * 60)
+    print("UPSCALING COMPLETED SUCCESSFULLY!")
+    print("=" * 60)
 
 
 def cmd_down(args):
     """Handle the 'down' subcommand for downscaling models."""
+    print(f"Downscaling model: {args.input}")
+
+    # Load and describe input model
+    print("\n" + "=" * 60)
+    print("INPUT MODEL DESCRIPTION")
+    print("=" * 60)
+    input_model = AutoModelForCausalLM.from_pretrained(
+        args.input, trust_remote_code=True, dtype=torch.float32
+    )
+    print(input_model)
+    input_param_count = count_parameters(input_model)
+    print(
+        f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
+    )
+
+    # Downscale the model
+    print("\n" + "=" * 60)
+    print("DOWNSCALING...")
+    print("=" * 60)
+    downscaled_model, output_path = downscale_model(
+        model_path=args.input, output_path=args.output, sparsity=args.sparsity
+    )
+
+    print(
+        f"Downscaled model has {format_parameter_count(count_parameters(downscaled_model))} parameters"
+    )
+    print(f"Output path: {output_path}")
+
+    # Save the model
+    print(f"Saving downscaled model to: {output_path}")
+    downscaled_model.save_pretrained(output_path)
+
+    # Also save tokenizer if it exists
     try:
-        print(f"Downscaling model: {args.input}")
-
-        # Load and describe input model
-        print("\n" + "=" * 60)
-        print("INPUT MODEL DESCRIPTION")
-        print("=" * 60)
-        input_model = AutoModelForCausalLM.from_pretrained(
-            args.input, trust_remote_code=True, dtype=torch.float32
-        )
-        print(input_model)
-        input_param_count = count_parameters(input_model)
-        print(
-            f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
-        )
-
-        # This will raise NotImplementedError for now
-        print("\n" + "=" * 60)
-        print("DOWNSCALING...")
-        print("=" * 60)
-        downscaled_model, output_path = downscale_model(
-            model_path=args.input, output_path=args.output
-        )
-
-        # When implemented, this would save and describe the output model
-        print(f"Output path would be: {output_path}")
+        tokenizer = AutoTokenizer.from_pretrained(args.input)
+        tokenizer.save_pretrained(output_path)
+        print("Tokenizer saved successfully")
     except Exception as e:
-        if isinstance(e, NotImplementedError):
-            print(f"Downscaling not yet implemented: {e}", file=sys.stderr)
-        else:
-            print(f"Error during downscaling: {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"Warning: Could not save tokenizer: {e}")
+
+    # Load and describe output model
+    print("\n" + "=" * 60)
+    print("OUTPUT MODEL DESCRIPTION")
+    print("=" * 60)
+    output_model = AutoModelForCausalLM.from_pretrained(
+        output_path, trust_remote_code=True, dtype=torch.float32
+    )
+    print(output_model)
+    output_param_count = count_parameters(output_model)
+    print(
+        f"\nOutput model total parameters: {format_parameter_count(output_param_count)}"
+    )
+
+    print("\n" + "=" * 60)
+    print("DOWNSCALING COMPLETED SUCCESSFULLY!")
+    print("=" * 60)
 
 
 def main():
@@ -263,10 +282,17 @@ def main():
     up_parser.set_defaults(func=cmd_up)
 
     # Down command
+    # Down command
     down_parser = subparsers.add_parser(
-        "down", parents=[common_parser], help="Downscale a model (not yet implemented)"
+        "down", parents=[common_parser], help="Downscale a model using Model Folding"
     )
     down_parser.add_argument("-o", "--output", help="Output path for downscaled model")
+    down_parser.add_argument(
+        "--sparsity",
+        type=float,
+        default=0.5,
+        help="Target sparsity for downscaling (0.5 means halve parameters, default: 0.5)",
+    )
     down_parser.set_defaults(func=cmd_down)
 
     # Desc command

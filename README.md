@@ -64,6 +64,9 @@ Get detailed information about a model's architecture and parameters:
 # Describe Qwen3-0.6B model
 python dslm.py desc --input Qwen/Qwen3-0.6B
 
+# Describe Qwen3-4B-Instruct-2507 model
+python dslm.py desc --input Qwen/Qwen3-4B-Instruct-2507
+
 # Describe Qwen2.5-0.5B model
 python dslm.py desc --input Qwen/Qwen2.5-0.5B
 
@@ -90,6 +93,9 @@ Generate text using a model:
 ```bash
 # Generate text with Qwen3-0.6B (default prompt)
 python dslm.py gen --input Qwen/Qwen3-0.6B --prompt "The future of AI is"
+
+# Generate text with Qwen3-4B-Instruct-2507
+python dslm.py gen --input Qwen/Qwen3-4B-Instruct-2507 --prompt "The future of AI is"
 
 # Generate text with Qwen2.5-0.5B (custom prompt)
 python dslm.py gen --input Qwen/Qwen2.5-0.5B --prompt "The future of AI is"
@@ -144,26 +150,27 @@ python dslm.py up --input TinyLlama/TinyLlama_v1.1 --embed-dim-multiplier 2 --up
 python dslm.py gen --input TinyLlama_v1.1-4.1B --prompt "The future of AI is"
 ```
 
-#### Downscaling (Not Yet Implemented)
+#### Downscaling
 
-Downscaling functionality is planned but not yet implemented:
+Downscaling uses the Model Folding method, a purely mathematical, fine-tuning-free approach to reduce transformer parameters by discovering and collapsing functional redundancy.
+
+This method employs a three-phase pipeline:
+1. **Neuron Clustering**: Uses k-Means in parameter space to group similar neurons
+2. **Linear Collapse**: Merges clustered neurons via matrix multiplication
+3. **Statistics Repair (Fold-AR)**: Analytical moment matching to preserve activation variance without data forward pass
+
+Currently supports downscaling Qwen3 models using target sparsity (0.5 means halve parameters).
 
 ```bash
-# Downscale a large Qwen3 model (example - not implemented)
-python dslm.py down --input Qwen/Qwen3-1.2B --output Qwen3-0.6B
+# Downscale Qwen3-4B-Instruct-2507 to ~2B parameters
+python dslm.py down --input Qwen/Qwen3-4B-Instruct-2507 --sparsity 0.5 --output Qwen3-2B-Instruct-2507
+python dslm.py gen --input Qwen3-2B-Instruct-2507 --prompt "The future of AI is"
 
-# Downscale a large Qwen2.5 model (example - not implemented)
-python dslm.py down --input Qwen/Qwen2.5-1B --output Qwen2.5-0.5B
-
-# Downscale a large SmolLM3 model (example - not implemented)
-python dslm.py down --input HuggingFaceTB/SmolLM3-3B --output SmolLM3-3B
-
-# Downscale a large SmolLM2 model (example - not implemented)
-python dslm.py down --input HuggingFaceTB/SmolLM2-1.4B --output SmolLM2-360M
-
-# Downscale a large TinyLlama model (example - not implemented)
-python dslm.py down --input TinyLlama/TinyLlama_v1.1 --output TinyLlama/TinyLlama_v1.1
+# Downscale Qwen3-0.6B to ~300M parameters
+python dslm.py down --input Qwen/Qwen3-0.6B --sparsity 0.5 --output Qwen3-0.3B
+python dslm.py gen --input Qwen3-0.3B --prompt "The future of AI is"
 ```
+
 
 ### Command Reference
 
@@ -185,6 +192,7 @@ python dslm.py down --input TinyLlama/TinyLlama_v1.1 --output TinyLlama/TinyLlam
   - `--up-proj-multiplier, -upm`: Integer multiplier for FFN dimensions
   - `--snr-db`: Optional signal-to-noise ratio for adding noise
 
-- `down`: Downscale a model (not yet implemented)
-  - `--input, -i`: Input model path or HuggingFace identifier
+- `down`: Downscale a model using Model Folding
+  - `--input, -i`: Input model path or HuggingFace identifier (currently supports Qwen3 models)
   - `--output, -o`: Output path for downscaled model
+  - `--sparsity`: Target sparsity for downscaling (0.5 means halve parameters, default: 0.5)

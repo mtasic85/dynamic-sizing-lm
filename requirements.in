@@ -3,3 +3,4 @@ transformers
 uv
 ty
 ruff
+scikit-learn
