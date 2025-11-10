@@ -1,2 +1,140 @@
 # dynamic-sizing-lm
+
 Upscaling and Downscaling Language Models
+
+## Upscaling
+
+As introduced in the research paper "Scaling Smart: Accelerating Large Language Model Pre-training with Small Model Initialization," employs the HyperCloning method to efficiently transfer knowledge from a smaller pre-trained transformer-based LLM to a larger target LLM.
+
+This function-preserving transformation expands the hidden dimensions of the source model, precisely mapping its linear layer parameters into the destination network so that the larger model exactly replicates the source’s hidden representations and output logits at initialization.
+
+As a result, the upscaled LLM starts with the full accuracy of the smaller model, enabling faster convergence and improved performance through subsequent fine-tuning or continued pre-training—achieving superior results under limited computational budgets compared to training from scratch (see https://arxiv.org/html/2409.12903v2).
+
+## Downscaling
+
+TODO: A purely mathematical formulation for downscaling has not yet been established. While a rigorous mathematical approach is not strictly required, we believe it represents the optimal path forward. By analogy, just as HyperCloning enables fast and efficient upscaling, downscaling should achieve comparable speed and efficiency. Importantly, the downscaling method must be agnostic to the upscaling technique and operate effectively on any larger transformer-based LLM, regardless of whether HyperCloning was previously applied.
+
+## Limitations
+
+- Dense transformer LLMs only
+- Text-to-text
+- SmolLM2, SmolLM3 support
+- Qwen2.5, Qwen3 support
+
+### Upscaling Limitations
+
+- The current implementation requires `embed_dim_multiplier` and `up_proj_multiplier` to be integers; fractional values are not supported
+- For attention layers, we recommend modifying only the number of attention heads while keeping `head_size` unchanged, as altering `head_size` would significantly increase implementation complexity
+
+## CLI Tool
+
+The `dslm.py` script provides a command-line interface for upscaling and downscaling language models.
+
+### Installation
+
+Ensure you have the required dependencies installed:
+
+```bash
+pip install torch transformers
+```
+
+### Usage
+
+#### Upscaling Models
+
+Upscale a model using the HyperCloning method:
+
+```bash
+# Upscale Qwen3-0.6B with 2x embedding and 2x FFN dimensions
+python dslm.py up --input Qwen/Qwen3-0.6B --embed-dim-multiplier 2 --up-proj-multiplier 2
+
+# Upscale Qwen2.5-0.5B with 2x embedding and 2x FFN dimensions
+python dslm.py up --input Qwen/Qwen2.5-0.5B --embed-dim-multiplier 2 --up-proj-multiplier 2
+
+# Upscale SmolLM2-360M with custom output path
+python dslm.py up --input HuggingFaceTB/SmolLM2-360M --embed-dim-multiplier 2 --up-proj-multiplier 2 --output SmolLM2-1.4B
+
+# Upscale SmolLM3-3B with 2x embedding and 2x FFN dimensions
+python dslm.py up --input HuggingFaceTB/SmolLM3-3B --embed-dim-multiplier 2 --up-proj-multiplier 2
+```
+
+#### Describing Models
+
+Get detailed information about a model's architecture and parameters:
+
+```bash
+# Describe Qwen3-0.6B model
+python dslm.py desc --input Qwen/Qwen3-0.6B
+
+# Describe Qwen2.5-0.5B model
+python dslm.py desc --input Qwen/Qwen2.5-0.5B
+
+# Describe SmolLM2-360M model
+python dslm.py desc --input HuggingFaceTB/SmolLM2-360M
+
+# Describe SmolLM3-3B model
+python dslm.py desc --input HuggingFaceTB/SmolLM3-3B
+```
+
+#### Text Generation
+
+Generate text using a model:
+
+```bash
+# Generate text with Qwen3-0.6B (default prompt)
+python dslm.py gen --input Qwen/Qwen3-0.6B --prompt "The future of AI is"
+
+# Generate text with Qwen2.5-0.5B (custom prompt)
+python dslm.py gen --input Qwen/Qwen2.5-0.5B --prompt "The future of AI is"
+
+# Generate text with SmolLM2-360M
+python dslm.py gen --input HuggingFaceTB/SmolLM2-360M --prompt "The future of AI is"
+
+# Generate text with SmolLM3-3B
+python dslm.py gen --input HuggingFaceTB/SmolLM3-3B --prompt "The future of AI is"
+
+# Generate text with custom sampling parameters
+python dslm.py gen --input Qwen/Qwen3-0.6B --n-predict 50 --temperature 0.8 --top-k 40 --top-p 0.9 --prompt "The future of AI"
+```
+
+#### Downscaling (Not Yet Implemented)
+
+Downscaling functionality is planned but not yet implemented:
+
+```bash
+# Downscale a large Qwen3 model (example - not implemented)
+python dslm.py down --input Qwen/Qwen3-1.2B --output Qwen3-0.6B
+
+# Downscale a large Qwen2.5 model (example - not implemented)
+python dslm.py down --input Qwen/Qwen2.5-1B --output Qwen2.5-0.5B
+
+# Downscale a large SmolLM2 model (example - not implemented)
+python dslm.py down --input HuggingFaceTB/SmolLM2-1.4B --output SmolLM2-360M
+
+# Downscale a large SmolLM3 model (example - not implemented)
+python dslm.py down --input HuggingFaceTB/SmolLM3-3B --output SmolLM3-3B
+```
+
+### Command Reference
+
+- `up`: Upscale a model using HyperCloning
+  - `--input, -i`: Input model path or HuggingFace identifier
+  - `--output, -o`: Output path (auto-generated if not provided)
+  - `--embed-dim-multiplier, -edm`: Integer multiplier for embedding dimensions
+  - `--up-proj-multiplier, -upm`: Integer multiplier for FFN dimensions
+  - `--snr-db`: Optional signal-to-noise ratio for adding noise
+
+- `desc`: Describe model architecture and parameters
+  - `--input, -i`: Input model path or HuggingFace identifier
+
+- `gen`: Generate text using the model
+  - `--input, -i`: Input model path or HuggingFace identifier
+  - `--prompt, -p`: Prompt for text generation (default: "The capital of France is")
+  - `--n-predict, -n`: Number of tokens to generate (default: 100)
+  - `--temperature`: Sampling temperature (default: 0.8)
+  - `--top-k`: Top-k sampling (default: 40)
+  - `--top-p`: Top-p sampling (default: 0.9)
+
+- `down`: Downscale a model (not yet implemented)
+  - `--input, -i`: Input model path or HuggingFace identifier
+  - `--output, -o`: Output path for downscaled model
