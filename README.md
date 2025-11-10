@@ -157,23 +157,23 @@ python dslm.py down --input Qwen/Qwen3-4B-Instruct-2507 --energy-threshold 0.99
 
 # Downscale Qwen3-1.2B to ~0.6B parameters with fixed rank
 python dslm.py down --input Qwen/Qwen3-0.6B --rank 512
-python dslm.py gen --input Qwen3-1.2B-0.6B --prompt "The future of AI is"
+# python dslm.py gen --input Qwen3-1.2B-0.6B --prompt "The future of AI is"
 
 # Downscale Qwen2.5-1B to ~0.5B parameters
 python dslm.py down --input Qwen/Qwen2.5-1B --energy-threshold 0.95
-python dslm.py gen --input Qwen2.5-1B_downscaled_energy0.95 --prompt "The future of AI is"
+# python dslm.py gen --input Qwen2.5-1B_downscaled_energy0.95 --prompt "The future of AI is"
 
 # Downscale SmolLM3-3B to ~1.5B parameters with custom rank
 python dslm.py down --input HuggingFaceTB/SmolLM3-3B --rank 768 --output SmolLM3-3B-1.5B
-python dslm.py gen --input SmolLM3-3B-1.5B --prompt "The future of AI is"
+# python dslm.py gen --input SmolLM3-3B-1.5B --prompt "The future of AI is"
 
 # Downscale SmolLM2-1.4B to ~0.7B parameters
 python dslm.py down --input HuggingFaceTB/SmolLM2-1.4B --energy-threshold 0.98
-python dslm.py gen --input SmolLM2-1.4B_downscaled_energy0.98 --prompt "The future of AI is"
+# python dslm.py gen --input SmolLM2-1.4B_downscaled_energy0.98 --prompt "The future of AI is"
 
 # Downscale TinyLlama_v1.1 to ~2B parameters from 4.1B
 python dslm.py down --input TinyLlama_v1.1-4.1B --rank 1024 --output TinyLlama_v1.1-2B
-python dslm.py gen --input TinyLlama_v1.1-2B --prompt "The future of AI is"
+# python dslm.py gen --input TinyLlama_v1.1-2B --prompt "The future of AI is"
 ```
 
 ### Command Reference
