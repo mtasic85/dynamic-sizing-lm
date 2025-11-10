@@ -17,7 +17,10 @@ def downscale_model(model_path: str, output_path: Optional[str] = None):
     Returns:
         Tuple of (downscaled_model, output_path)
     """
+    # TODO: Implement downscaling logic
     raise NotImplementedError(
         "Downscaling logic is not yet implemented. "
         "A rigorous mathematical formulation is needed."
     )
+    # Dummy return to satisfy type checker (never reached)
+    return None, output_path

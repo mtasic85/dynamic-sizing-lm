@@ -84,6 +84,8 @@ requests==2.32.5
     # via
     #   huggingface-hub
     #   transformers
+ruff==0.14.4
+    # via -r requirements.in
 safetensors==0.6.2
     # via transformers
 setuptools==80.9.0
@@ -102,9 +104,13 @@ transformers==4.57.1
     # via -r requirements.in
 triton==3.5.0
     # via torch
+ty==0.0.1a25
+    # via -r requirements.in
 typing-extensions==4.15.0
     # via
     #   huggingface-hub
     #   torch
 urllib3==2.5.0
     # via requests
+uv==0.9.8
+    # via -r requirements.in

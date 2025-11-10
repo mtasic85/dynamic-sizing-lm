@@ -163,6 +163,13 @@ def cmd_gen(args):
         )
         tokenizer = AutoTokenizer.from_pretrained(args.input)
 
+        # Print the model architecture
+        print(model)
+
+        # Print total parameter count
+        param_count = count_parameters(model)
+        print(f"\nTotal parameters: {format_parameter_count(param_count)}")
+
         # Move model to appropriate device
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = model.to(device)  # type: ignore

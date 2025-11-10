@@ -100,12 +100,15 @@ python dslm.py gen --input Qwen3-0.6B-1.0B --prompt "The future of AI is"
 
 # Upscale Qwen2.5-0.5B for ~4x parameters (double both hidden and FFN dimensions)
 python dslm.py up --input Qwen/Qwen2.5-0.5B --embed-dim-multiplier 2 --up-proj-multiplier 2
+python dslm.py gen --input Qwen2.5-0.5B-2.0B --prompt "The future of AI is"
 
 # Upscale SmolLM2-360M for ~4x parameters with custom output path
-python dslm.py up --input HuggingFaceTB/SmolLM2-360M --embed-dim-multiplier 2 --up-proj-multiplier 2 --output SmolLM2-1.4B
+python dslm.py up --input HuggingFaceTB/SmolLM2-360M --embed-dim-multiplier 2 --up-proj-multiplier 2 --output SmolLM2-360M-1.4B
+python dslm.py gen --input SmolLM2-360M-1.4B --prompt "The future of AI is"
 
 # Upscale SmolLM3-3B for ~4x parameters
-python dslm.py up --input HuggingFaceTB/SmolLM3-3B --embed-dim-multiplier 2 --up-proj-multiplier 2
+python dslm.py up --input HuggingFaceTB/SmolLM3-3B --embed-dim-multiplier 2 --up-proj-multiplier 2 --output SmolLM3-3B-12.3B
+python dslm.py gen --input SmolLM3-3B-12.3B --prompt "The future of AI is"
 ```
 
 #### Downscaling (Not Yet Implemented)

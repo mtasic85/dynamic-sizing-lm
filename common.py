@@ -143,7 +143,7 @@ def rename_config(
     return config
 
 
-class scaledLinear(torch.nn.Module):
+class ScaledLinear(torch.nn.Module):
     """
     Wrapper layer that scales the weights of a linear layer before applying
     the linear transformation.
@@ -188,15 +188,21 @@ def count_parameters(model):
 
 
 def format_parameter_count(num_params):
-    """Format parameter count in human-readable format (B for billions, M for millions)."""
+    """Format parameter count in human-readable format (B for billions, M for millions) with exact count."""
+    if num_params >= 1e9:
+        formatted = f"{num_params / 1e9:.1f}B"
+    elif num_params >= 1e6:
+        formatted = f"{num_params / 1e6:.1f}M"
+    else:
+        formatted = str(num_params)
+    return f"{formatted} ({num_params:,})"
+
+
+def get_model_size_suffix(num_params):
+    """Get model size suffix based on parameter count (rounded only)."""
     if num_params >= 1e9:
         return f"{num_params / 1e9:.1f}B"
     elif num_params >= 1e6:
         return f"{num_params / 1e6:.1f}M"
     else:
         return str(num_params)
-
-
-def get_model_size_suffix(num_params):
-    """Get model size suffix based on parameter count."""
-    return format_parameter_count(num_params)
