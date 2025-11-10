@@ -184,6 +184,9 @@ def cmd_down(args):
     """Handle the 'down' subcommand for downscaling models."""
     try:
         print(f"Downscaling model: {args.input}")
+        print(f"Rank: {args.rank}")
+        print(f"Energy threshold: {args.energy_threshold}")
+        print(f"P-norm: {args.p_norm}")
 
         # Load and describe input model
         print("\n" + "=" * 60)
@@ -198,21 +201,37 @@ def cmd_down(args):
             f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
         )
 
-        # This will raise NotImplementedError for now
+        # Downscale the model
         print("\n" + "=" * 60)
         print("DOWNSCALING...")
         print("=" * 60)
         downscaled_model, output_path = downscale_model(
-            model_path=args.input, output_path=args.output
+            model_path=args.input,
+            output_path=args.output,
+            rank=args.rank,
+            energy_threshold=args.energy_threshold,
+            p_norm=args.p_norm,
         )
 
-        # When implemented, this would save and describe the output model
-        print(f"Output path would be: {output_path}")
+        # Load and describe output model
+        print("\n" + "=" * 60)
+        print("OUTPUT MODEL DESCRIPTION")
+        print("=" * 60)
+        output_model = AutoModelForCausalLM.from_pretrained(
+            output_path, trust_remote_code=True, dtype=torch.float32
+        )
+        print(output_model)
+        output_param_count = count_parameters(output_model)
+        print(
+            f"\nOutput model total parameters: {format_parameter_count(output_param_count)}"
+        )
+
+        print("\n" + "=" * 60)
+        print("DOWNSCALING COMPLETED SUCCESSFULLY!")
+        print("=" * 60)
+
     except Exception as e:
-        if isinstance(e, NotImplementedError):
-            print(f"Downscaling not yet implemented: {e}", file=sys.stderr)
-        else:
-            print(f"Error during downscaling: {e}", file=sys.stderr)
+        print(f"Error during downscaling: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -264,9 +283,23 @@ def main():
 
     # Down command
     down_parser = subparsers.add_parser(
-        "down", parents=[common_parser], help="Downscale a model (not yet implemented)"
+        "down",
+        parents=[common_parser],
+        help="Downscale a model using SVD low-rank approximation",
     )
     down_parser.add_argument("-o", "--output", help="Output path for downscaled model")
+    down_parser.add_argument(
+        "--rank", type=int, help="Target rank for low-rank approximation"
+    )
+    down_parser.add_argument(
+        "--energy-threshold",
+        type=float,
+        default=0.99,
+        help="Energy retention threshold (0.0-1.0, default: 0.99)",
+    )
+    down_parser.add_argument(
+        "--p-norm", type=float, default=2.0, help="Norm for robust SVD (default: 2.0)"
+    )
     down_parser.set_defaults(func=cmd_down)
 
     # Desc command

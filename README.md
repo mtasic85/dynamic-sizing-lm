@@ -12,7 +12,9 @@ As a result, the upscaled LLM starts with the full accuracy of the smaller model
 
 ## Downscaling
 
-TODO: A purely mathematical formulation for downscaling has not yet been established. While a rigorous mathematical approach is not strictly required, we believe it represents the optimal path forward. By analogy, just as HyperCloning enables fast and efficient upscaling, downscaling should achieve comparable speed and efficiency. Importantly, the downscaling method must be agnostic to the upscaling technique and operate effectively on any larger transformer-based LLM, regardless of whether HyperCloning was previously applied.
+Downscaling uses Singular Value Decomposition (SVD) for low-rank approximation to compress model weights while preserving performance. This mathematical approach decomposes weight matrices into low-rank components that capture the dominant variance, effectively reducing hidden dimensions while maintaining functional similarity to the original model.
+
+The method applies layer-wise compression to attention and FFN layers, restructuring single linear layers into sequential low-rank approximations. It supports both fixed-rank truncation and energy-based thresholding (retaining 99% of variance by default), with optional robust SVD variants for improved quality retention.
 
 ## Limitations
 
@@ -144,25 +146,34 @@ python dslm.py up --input TinyLlama/TinyLlama_v1.1 --embed-dim-multiplier 2 --up
 python dslm.py gen --input TinyLlama_v1.1-4.1B --prompt "The future of AI is"
 ```
 
-#### Downscaling (Not Yet Implemented)
+#### Downscaling Models
 
-Downscaling functionality is planned but not yet implemented:
+Downscale models using SVD-based low-rank approximation. The method compresses attention and FFN layers while preserving 99% of variance by default.
 
 ```bash
-# Downscale a large Qwen3 model (example - not implemented)
-python dslm.py down --input Qwen/Qwen3-1.2B --output Qwen3-0.6B
+# Downscale Qwen3-4B-Instruct to ~2B parameters using energy threshold
+python dslm.py down --input Qwen/Qwen3-4B-Instruct-2507 --energy-threshold 0.99
+# python dslm.py gen --input Qwen3-4B-Instruct-2507_downscaled_energy0.99 --prompt "The future of AI is"
 
-# Downscale a large Qwen2.5 model (example - not implemented)
-python dslm.py down --input Qwen/Qwen2.5-1B --output Qwen2.5-0.5B
+# Downscale Qwen3-1.2B to ~0.6B parameters with fixed rank
+python dslm.py down --input Qwen/Qwen3-0.6B --rank 512
+python dslm.py gen --input Qwen3-1.2B-0.6B --prompt "The future of AI is"
 
-# Downscale a large SmolLM3 model (example - not implemented)
-python dslm.py down --input HuggingFaceTB/SmolLM3-3B --output SmolLM3-3B
+# Downscale Qwen2.5-1B to ~0.5B parameters
+python dslm.py down --input Qwen/Qwen2.5-1B --energy-threshold 0.95
+python dslm.py gen --input Qwen2.5-1B_downscaled_energy0.95 --prompt "The future of AI is"
 
-# Downscale a large SmolLM2 model (example - not implemented)
-python dslm.py down --input HuggingFaceTB/SmolLM2-1.4B --output SmolLM2-360M
+# Downscale SmolLM3-3B to ~1.5B parameters with custom rank
+python dslm.py down --input HuggingFaceTB/SmolLM3-3B --rank 768 --output SmolLM3-3B-1.5B
+python dslm.py gen --input SmolLM3-3B-1.5B --prompt "The future of AI is"
 
-# Downscale a large TinyLlama model (example - not implemented)
-python dslm.py down --input TinyLlama/TinyLlama_v1.1 --output TinyLlama/TinyLlama_v1.1
+# Downscale SmolLM2-1.4B to ~0.7B parameters
+python dslm.py down --input HuggingFaceTB/SmolLM2-1.4B --energy-threshold 0.98
+python dslm.py gen --input SmolLM2-1.4B_downscaled_energy0.98 --prompt "The future of AI is"
+
+# Downscale TinyLlama_v1.1 to ~2B parameters from 4.1B
+python dslm.py down --input TinyLlama_v1.1-4.1B --rank 1024 --output TinyLlama_v1.1-2B
+python dslm.py gen --input TinyLlama_v1.1-2B --prompt "The future of AI is"
 ```
 
 ### Command Reference
@@ -185,6 +196,9 @@ python dslm.py down --input TinyLlama/TinyLlama_v1.1 --output TinyLlama/TinyLlam
   - `--up-proj-multiplier, -upm`: Integer multiplier for FFN dimensions
   - `--snr-db`: Optional signal-to-noise ratio for adding noise
 
-- `down`: Downscale a model (not yet implemented)
+- `down`: Downscale a model using SVD low-rank approximation
   - `--input, -i`: Input model path or HuggingFace identifier
   - `--output, -o`: Output path for downscaled model
+  - `--rank`: Target rank for low-rank approximation
+  - `--energy-threshold`: Energy retention threshold (0.0-1.0, default: 0.99)
+  - `--p-norm`: Norm for robust SVD (default: 2.0)
