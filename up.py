@@ -47,20 +47,8 @@ def upscale_model(
         model_path, trust_remote_code=True, dtype=torch.float32
     )
 
-    # Determine cloning function based on model path
-    if "Qwen3" in model_path:
-        config_type = "Qwen3Config"
-    elif "SmolLM3" in model_path:
-        config_type = "SmolLM3Config"
-    elif "SmolLM2" in model_path:
-        config_type = "SmolLM2Config"
-    elif "TinyLlama" in model_path:
-        config_type = "LlamaConfig"
-    elif "OLMo" in model_path:
-        config_type = "Olmo2Config"
-    else:
-        # Fallback to config type detection
-        config_type = str(type(src_model.config)).split(".")[-1][:-2].strip()
+    # Determine cloning function based on config type
+    config_type = str(type(src_model.config)).split(".")[-1][:-2].strip()
 
     print(f"Detected model type: {config_type}")
 
