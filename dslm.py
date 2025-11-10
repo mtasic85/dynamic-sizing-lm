@@ -219,9 +219,9 @@ def main():
         description="Dynamic Sizing Language Model (DSLM) Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Upscale a Qwen3-0.6B model
-  dslm up --input Qwen/Qwen3-0.6B --embed-dim-multiplier 2 --up-proj-multiplier 2
+ Examples:
+   # Upscale a Qwen3-0.6B model for ~2x parameters
+   dslm up --input Qwen/Qwen3-0.6B --embed-dim-multiplier 1 --up-proj-multiplier 2
 
   # Describe a model
   dslm desc --input HuggingFaceTB/SmolLM2-360M

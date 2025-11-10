@@ -168,9 +168,7 @@ def clone_smol(
         clone_rms_norm(
             dst_layer.post_attention_layernorm, src_layer.post_attention_layernorm
         )
-        dst_layer.self_attn = clone_smol_attention(
-            dst_layer.self_attn, src_layer.self_attn, snr_db=snr_db
-        )
+        clone_smol_attention(dst_layer.self_attn, src_layer.self_attn, snr_db=snr_db)
         clone_linear_layer(  # type: ignore
             dst_layer.mlp.gate_proj, src_layer.mlp.gate_proj, snr_db=snr_db
         )
@@ -214,11 +212,20 @@ def upscale_model(
     """
     print(f"Loading source model: {model_path}")
     src_model = AutoModelForCausalLM.from_pretrained(
-        model_path, trust_remote_code=True, torch_dtype=torch.float32
+        model_path, trust_remote_code=True, dtype=torch.float32
     )
 
-    # Determine cloning function based on config type
-    config_type = str(type(src_model.config)).split(".")[-1][:-2].strip()
+    # Determine cloning function based on model path
+    if "Qwen3" in model_path:
+        config_type = "Qwen3Config"
+    elif "SmolLM3" in model_path:
+        config_type = "SmolLM3Config"
+    elif "SmolLM2" in model_path:
+        config_type = "SmolLM2Config"
+    else:
+        # Fallback to config type detection
+        config_type = str(type(src_model.config)).split(".")[-1][:-2].strip()
+
     print(f"Detected model type: {config_type}")
 
     if config_type not in REGISTERED_CLONING_FUNCTIONS:

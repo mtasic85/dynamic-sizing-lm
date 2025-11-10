@@ -21,9 +21,19 @@ TODO: A purely mathematical formulation for downscaling has not yet been establi
 - SmolLM2, SmolLM3 support
 - Qwen2.5, Qwen3 support
 
+### Parameter Scaling
+
+The HyperCloning method scales model parameters approximately as follows:
+- Hidden dimensions (embeddings, attention projections): scale with n² where n = embed_dim_multiplier
+- FFN intermediate dimensions: scale with m² where m = up_proj_multiplier
+- Total parameters ≈ original × (n² × weight_attention + m² × weight_ffn + linear_terms)
+
+For ~2x parameter increase, use asymmetric scaling like embed_dim_multiplier=1, up_proj_multiplier=2 (scales FFN quadratically while keeping attention size constant).
+
 ### Upscaling Limitations
 
 - The current implementation requires `embed_dim_multiplier` and `up_proj_multiplier` to be integers; fractional values are not supported
+- Although the destination network's output is valid, it may not be perfectly aligned with the source network due to numerical precision issues
 - For attention layers, we recommend modifying only the number of attention heads while keeping `head_size` unchanged, as altering `head_size` would significantly increase implementation complexity
 
 ## CLI Tool
@@ -39,24 +49,6 @@ pip install torch transformers
 ```
 
 ### Usage
-
-#### Upscaling Models
-
-Upscale a model using the HyperCloning method:
-
-```bash
-# Upscale Qwen3-0.6B with 2x embedding and 2x FFN dimensions
-python dslm.py up --input Qwen/Qwen3-0.6B --embed-dim-multiplier 2 --up-proj-multiplier 2
-
-# Upscale Qwen2.5-0.5B with 2x embedding and 2x FFN dimensions
-python dslm.py up --input Qwen/Qwen2.5-0.5B --embed-dim-multiplier 2 --up-proj-multiplier 2
-
-# Upscale SmolLM2-360M with custom output path
-python dslm.py up --input HuggingFaceTB/SmolLM2-360M --embed-dim-multiplier 2 --up-proj-multiplier 2 --output SmolLM2-1.4B
-
-# Upscale SmolLM3-3B with 2x embedding and 2x FFN dimensions
-python dslm.py up --input HuggingFaceTB/SmolLM3-3B --embed-dim-multiplier 2 --up-proj-multiplier 2
-```
 
 #### Describing Models
 
@@ -97,6 +89,25 @@ python dslm.py gen --input HuggingFaceTB/SmolLM3-3B --prompt "The future of AI i
 python dslm.py gen --input Qwen/Qwen3-0.6B --n-predict 50 --temperature 0.8 --top-k 40 --top-p 0.9 --prompt "The future of AI"
 ```
 
+#### Upscaling Models
+
+Upscale a model using the HyperCloning method. Note: Parameter count scales approximately with n² where n is the multiplier for hidden dimensions. For ~2x parameter increase, use asymmetric scaling (e.g., embed-dim-multiplier 1, up-proj-multiplier 2).
+
+```bash
+# Upscale Qwen3-0.6B for ~2x parameters (keep hidden size, double FFN)
+python dslm.py up --input Qwen/Qwen3-0.6B --embed-dim-multiplier 1 --up-proj-multiplier 2
+python dslm.py gen --input Qwen3-0.6B-1.0B --prompt "The future of AI is"
+
+# Upscale Qwen2.5-0.5B for ~4x parameters (double both hidden and FFN dimensions)
+python dslm.py up --input Qwen/Qwen2.5-0.5B --embed-dim-multiplier 2 --up-proj-multiplier 2
+
+# Upscale SmolLM2-360M for ~4x parameters with custom output path
+python dslm.py up --input HuggingFaceTB/SmolLM2-360M --embed-dim-multiplier 2 --up-proj-multiplier 2 --output SmolLM2-1.4B
+
+# Upscale SmolLM3-3B for ~4x parameters
+python dslm.py up --input HuggingFaceTB/SmolLM3-3B --embed-dim-multiplier 2 --up-proj-multiplier 2
+```
+
 #### Downscaling (Not Yet Implemented)
 
 Downscaling functionality is planned but not yet implemented:
@@ -117,13 +128,6 @@ python dslm.py down --input HuggingFaceTB/SmolLM3-3B --output SmolLM3-3B
 
 ### Command Reference
 
-- `up`: Upscale a model using HyperCloning
-  - `--input, -i`: Input model path or HuggingFace identifier
-  - `--output, -o`: Output path (auto-generated if not provided)
-  - `--embed-dim-multiplier, -edm`: Integer multiplier for embedding dimensions
-  - `--up-proj-multiplier, -upm`: Integer multiplier for FFN dimensions
-  - `--snr-db`: Optional signal-to-noise ratio for adding noise
-
 - `desc`: Describe model architecture and parameters
   - `--input, -i`: Input model path or HuggingFace identifier
 
@@ -134,6 +138,13 @@ python dslm.py down --input HuggingFaceTB/SmolLM3-3B --output SmolLM3-3B
   - `--temperature`: Sampling temperature (default: 0.8)
   - `--top-k`: Top-k sampling (default: 40)
   - `--top-p`: Top-p sampling (default: 0.9)
+
+- `up`: Upscale a model using HyperCloning
+  - `--input, -i`: Input model path or HuggingFace identifier
+  - `--output, -o`: Output path (auto-generated if not provided)
+  - `--embed-dim-multiplier, -edm`: Integer multiplier for embedding dimensions
+  - `--up-proj-multiplier, -upm`: Integer multiplier for FFN dimensions
+  - `--snr-db`: Optional signal-to-noise ratio for adding noise
 
 - `down`: Downscale a model (not yet implemented)
   - `--input, -i`: Input model path or HuggingFace identifier

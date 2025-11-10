@@ -199,9 +199,4 @@ def format_parameter_count(num_params):
 
 def get_model_size_suffix(num_params):
     """Get model size suffix based on parameter count."""
-    if num_params >= 1e9:
-        return ".1f"
-    elif num_params >= 1e6:
-        return ".1f"
-    else:
-        return str(num_params)
+    return format_parameter_count(num_params)
