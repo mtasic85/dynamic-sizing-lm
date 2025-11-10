@@ -8,8 +8,6 @@ A tool for upscaling and downscaling language models using the HyperCloning meth
 import argparse
 import os
 import sys
-from pathlib import Path
-from typing import Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
@@ -226,11 +224,17 @@ def main():
         description="Dynamic Sizing Language Model (DSLM) Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
- Examples:
-   # Upscale a Qwen3-0.6B model for ~2x parameters
-   dslm up --input Qwen/Qwen3-0.6B --embed-dim-multiplier 1 --up-proj-multiplier 2
+  Examples:
+    # Upscale a Qwen3-0.6B model for ~2x parameters
+    dslm up --input Qwen/Qwen3-0.6B --embed-dim-multiplier 1 --up-proj-multiplier 2
 
-  # Describe a model
+    # Upscale TinyLlama_v1.1 for ~4x parameters
+    dslm up --input TinyLlama/TinyLlama_v1.1 --embed-dim-multiplier 2 --up-proj-multiplier 2
+
+    # Upscale Phi-1.5 for ~4x parameters
+    dslm up --input microsoft/phi-1_5 --embed-dim-multiplier 2 --up-proj-multiplier 2
+
+   # Describe a model
   dslm desc --input HuggingFaceTB/SmolLM2-360M
 
   # Generate text

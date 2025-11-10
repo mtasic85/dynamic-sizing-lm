@@ -20,6 +20,8 @@ TODO: A purely mathematical formulation for downscaling has not yet been establi
 - Text-to-text
 - SmolLM2, SmolLM3 support
 - Qwen2.5, Qwen3 support
+- TinyLlama support
+- Phi-1.5 support
 
 ### Parameter Scaling
 
@@ -45,7 +47,7 @@ The `dslm.py` script provides a command-line interface for upscaling and downsca
 Ensure you have the required dependencies installed:
 
 ```bash
-pip install torch transformers
+pip install -r requirements.txt
 ```
 
 ### Usage
@@ -66,6 +68,12 @@ python dslm.py desc --input HuggingFaceTB/SmolLM2-360M
 
 # Describe SmolLM3-3B model
 python dslm.py desc --input HuggingFaceTB/SmolLM3-3B
+
+# Describe TinyLlama_v1.1 model
+python dslm.py desc --input TinyLlama/TinyLlama_v1.1
+
+# Describe Phi-1.5 model
+python dslm.py desc --input microsoft/phi-1_5
 ```
 
 #### Text Generation
@@ -84,6 +92,12 @@ python dslm.py gen --input HuggingFaceTB/SmolLM2-360M --prompt "The future of AI
 
 # Generate text with SmolLM3-3B
 python dslm.py gen --input HuggingFaceTB/SmolLM3-3B --prompt "The future of AI is"
+
+# Generate text with TinyLlama_v1.1
+python dslm.py gen --input TinyLlama/TinyLlama_v1.1 --prompt "The future of AI is"
+
+# Generate text with Phi-1.5
+python dslm.py gen --input microsoft/phi-1_5 --prompt "The future of AI is"
 
 # Generate text with custom sampling parameters
 python dslm.py gen --input Qwen/Qwen3-0.6B --n-predict 50 --temperature 0.8 --top-k 40 --top-p 0.9 --prompt "The future of AI"
@@ -109,6 +123,14 @@ python dslm.py gen --input SmolLM2-360M-1.4B --prompt "The future of AI is"
 # Upscale SmolLM3-3B for ~4x parameters
 python dslm.py up --input HuggingFaceTB/SmolLM3-3B --embed-dim-multiplier 2 --up-proj-multiplier 2 --output SmolLM3-3B-12.3B
 python dslm.py gen --input SmolLM3-3B-12.3B --prompt "The future of AI is"
+
+# Upscale TinyLlama_v1.1 for ~4x parameters
+python dslm.py up --input TinyLlama/TinyLlama_v1.1 --embed-dim-multiplier 2 --up-proj-multiplier 2
+python dslm.py gen --input TinyLlama_v1.1-4.1B --prompt "The future of AI is"
+
+# Upscale Phi-1.5 for ~4x parameters
+python dslm.py up --input microsoft/phi-1_5 --embed-dim-multiplier 2 --up-proj-multiplier 2
+python dslm.py gen --input phi-1_5-5.2B --prompt "The future of AI is"
 ```
 
 #### Downscaling (Not Yet Implemented)
@@ -127,6 +149,9 @@ python dslm.py down --input HuggingFaceTB/SmolLM2-1.4B --output SmolLM2-360M
 
 # Downscale a large SmolLM3 model (example - not implemented)
 python dslm.py down --input HuggingFaceTB/SmolLM3-3B --output SmolLM3-3B
+
+# Downscale a large TinyLlama model (example - not implemented)
+python dslm.py down --input TinyLlama/TinyLlama_v1.1 --output TinyLlama/TinyLlama_v1.1
 ```
 
 ### Command Reference

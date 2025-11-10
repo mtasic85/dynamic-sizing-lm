@@ -5,15 +5,15 @@ Based on https://arxiv.org/html/2409.12903v2 and https://github.com/mtasic85/ml-
 
 import copy
 import torch
-from transformers import AutoModelForCausalLM, Qwen3ForCausalLM
+from transformers import AutoModelForCausalLM
 from typing import Optional
 
 from common import (  # type: ignore
     clone_matrix,
-    clone_vector,
     clone_linear_layer,
     clone_rms_norm,
-    clone_gemma_qkv_layer,
+    clone_layer_norm,
+    clone_qkv_layer,
     rename_config,
     count_parameters,
     format_parameter_count,
@@ -154,21 +154,21 @@ def clone_qwen_attention(dst_layer, src_layer, snr_db=None):
     Clones the attention layer for Qwen models.
     """
     # Handle Qwen attention layers
-    clone_gemma_qkv_layer(
+    clone_qkv_layer(
         dst_layer.q_proj,
         src_layer.q_proj,
         dst_layer.config.num_attention_heads,
         src_layer.config.num_attention_heads,
         snr_db=snr_db,
     )
-    clone_gemma_qkv_layer(
+    clone_qkv_layer(
         dst_layer.k_proj,
         src_layer.k_proj,
         dst_layer.config.num_key_value_heads,
         src_layer.config.num_key_value_heads,
         snr_db=snr_db,
     )
-    clone_gemma_qkv_layer(
+    clone_qkv_layer(
         dst_layer.v_proj,
         src_layer.v_proj,
         dst_layer.config.num_key_value_heads,
@@ -182,6 +182,34 @@ def clone_qwen_attention(dst_layer, src_layer, snr_db=None):
         clone_rms_norm(dst_layer.q_norm, src_layer.q_norm)
     if hasattr(src_layer, "k_norm") and hasattr(dst_layer, "k_norm"):
         clone_rms_norm(dst_layer.k_norm, src_layer.k_norm)
+
+
+def clone_llama_attention(dst_layer, src_layer, snr_db=None):
+    """
+    Clones the attention layer for Llama models.
+    """
+    clone_qkv_layer(
+        dst_layer.q_proj,
+        src_layer.q_proj,
+        dst_layer.config.num_attention_heads,
+        src_layer.config.num_attention_heads,
+        snr_db=snr_db,
+    )
+    clone_qkv_layer(
+        dst_layer.k_proj,
+        src_layer.k_proj,
+        dst_layer.config.num_key_value_heads,
+        src_layer.config.num_key_value_heads,
+        snr_db=snr_db,
+    )
+    clone_qkv_layer(
+        dst_layer.v_proj,
+        src_layer.v_proj,
+        dst_layer.config.num_key_value_heads,
+        src_layer.config.num_key_value_heads,
+        snr_db=snr_db,
+    )
+    clone_linear_layer(dst_layer.o_proj, src_layer.o_proj, snr_db=snr_db)
 
 
 def clone_smollm_attention(dst_layer, src_layer, snr_db=None):
@@ -298,12 +326,134 @@ def clone_smollm3(
     return dst_network
 
 
+def clone_llama(
+    src_network,
+    embedding_dim_multiplier: int = 1,
+    up_project_multiplier: int = 1,
+    **kwargs,
+):
+    """
+    Cloning function for Llama models.
+    """
+    snr_db = kwargs.get("snr_db", None)
+
+    # Set the destination network config
+    config = copy.deepcopy(src_network.config)
+    config.hidden_size = embedding_dim_multiplier * config.hidden_size
+    config.intermediate_size = up_project_multiplier * config.intermediate_size
+    config.num_attention_heads = embedding_dim_multiplier * config.num_attention_heads
+    config.num_key_value_heads = embedding_dim_multiplier * config.num_key_value_heads
+    config.tie_word_embeddings = False
+
+    # Rename config according to expansion factors
+    config = rename_config(config, embedding_dim_multiplier, up_project_multiplier)
+
+    # Create destination network
+    dst_network = type(src_network)._from_config(config)
+
+    # Clone embeddings
+    dst_network.model.embed_tokens.weight.data = clone_matrix(
+        dst_network.model.embed_tokens.weight.data.shape,
+        src_network.model.embed_tokens.weight.data,
+        normalize=False,
+    )
+
+    # Clone each layer
+    for dst_layer, src_layer in zip(dst_network.model.layers, src_network.model.layers):
+        clone_rms_norm(dst_layer.input_layernorm, src_layer.input_layernorm)
+        clone_rms_norm(
+            dst_layer.post_attention_layernorm, src_layer.post_attention_layernorm
+        )
+        clone_llama_attention(dst_layer.self_attn, src_layer.self_attn, snr_db=snr_db)
+        clone_linear_layer(
+            dst_layer.mlp.gate_proj,
+            src_layer.mlp.gate_proj,
+            snr_db=snr_db,  # type: ignore
+        )
+        clone_linear_layer(dst_layer.mlp.up_proj, src_layer.mlp.up_proj, snr_db=snr_db)  # type: ignore
+        clone_linear_layer(
+            dst_layer.mlp.down_proj,
+            src_layer.mlp.down_proj,
+            snr_db=snr_db,  # type: ignore
+        )
+
+    clone_rms_norm(dst_network.model.norm, src_network.model.norm)
+    clone_linear_layer(dst_network.lm_head, src_network.lm_head)
+    return dst_network
+
+
+def clone_phi_1(
+    src_network,
+    embedding_dim_multiplier: int = 1,
+    up_project_multiplier: int = 1,
+    **kwargs,
+):
+    """
+    Cloning function for Phi-1.5 models.
+    """
+    snr_db = kwargs.get("snr_db", None)
+
+    # Set destination config
+    config = copy.deepcopy(src_network.config)
+    config.hidden_size = embedding_dim_multiplier * config.hidden_size
+    config.intermediate_size = up_project_multiplier * config.intermediate_size
+    config.num_attention_heads = embedding_dim_multiplier * config.num_attention_heads
+    config.num_key_value_heads = embedding_dim_multiplier * config.num_key_value_heads
+    config.tie_word_embeddings = False
+
+    # Rename config
+    config = rename_config(config, embedding_dim_multiplier, up_project_multiplier)
+
+    # Create destination network
+    dst_network = type(src_network)._from_config(config)
+
+    # Clone embeddings
+    dst_network.model.embed_tokens.weight.data = clone_matrix(
+        dst_network.model.embed_tokens.weight.data.shape,
+        src_network.model.embed_tokens.weight.data,
+        normalize=False,
+    )
+
+    # Clone each layer
+    for dst_layer, src_layer in zip(dst_network.model.layers, src_network.model.layers):
+        clone_layer_norm(dst_layer.input_layernorm, src_layer.input_layernorm)
+        clone_phi_attention(dst_layer.self_attn, src_layer.self_attn, snr_db=snr_db)
+        clone_linear_layer(
+            dst_layer.mlp.fc1,
+            src_layer.mlp.fc1,
+            snr_db=snr_db,  # type: ignore
+        )
+        clone_linear_layer(
+            dst_layer.mlp.fc2,
+            src_layer.mlp.fc2,
+            snr_db=snr_db,  # type: ignore
+        )
+
+    clone_layer_norm(
+        dst_network.model.final_layernorm, src_network.model.final_layernorm
+    )
+    clone_linear_layer(dst_network.lm_head, src_network.lm_head)
+    return dst_network
+
+
+def clone_phi_attention(dst_layer, src_layer, snr_db=None):
+    """
+    Clones the attention layer for Phi models.
+    """
+    clone_linear_layer(dst_layer.q_proj, src_layer.q_proj, snr_db=snr_db)
+    clone_linear_layer(dst_layer.k_proj, src_layer.k_proj, snr_db=snr_db)
+    clone_linear_layer(dst_layer.v_proj, src_layer.v_proj, snr_db=snr_db)
+    clone_linear_layer(dst_layer.dense, src_layer.dense, snr_db=snr_db)
+
+
 # Registry of supported cloning functions
 REGISTERED_CLONING_FUNCTIONS = {
     "Qwen2Config": clone_qwen2_5,
     "Qwen3Config": clone_qwen3,
     "SmolLM2Config": clone_smollm2,
     "SmolLM3Config": clone_smollm3,
+    "LlamaConfig": clone_llama,
+    "PhiConfig": clone_phi_1,
 }
 
 
@@ -339,6 +489,8 @@ def upscale_model(
         config_type = "SmolLM3Config"
     elif "SmolLM2" in model_path:
         config_type = "SmolLM2Config"
+    elif "TinyLlama" in model_path:
+        config_type = "LlamaConfig"
     else:
         # Fallback to config type detection
         config_type = str(type(src_model.config)).split(".")[-1][:-2].strip()

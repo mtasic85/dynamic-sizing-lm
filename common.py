@@ -165,14 +165,11 @@ class ScaledLinear(torch.nn.Module):
         return torch.nn.functional.linear(x, weight, bias)
 
 
-def clone_gemma_qkv_layer(
-    dst_layer, src_layer, dst_num_heads, src_num_heads, snr_db=None
-):
+def clone_qkv_layer(dst_layer, src_layer, dst_num_heads, src_num_heads, snr_db=None):
     """
     Clones QKV layers for attention mechanisms, handling head expansion.
     """
     assert dst_num_heads % src_num_heads == 0
-    head_multiplier = dst_num_heads // src_num_heads
 
     dst_layer.weight.data = clone_matrix(
         dst_layer.weight.shape, src_layer.weight.data, snr_db=snr_db
