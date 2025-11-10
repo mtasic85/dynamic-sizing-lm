@@ -141,7 +141,7 @@ python dslm.py gen --input phi-1_5-5.3B --prompt "The future of AI is"
 
 # Upscale OLMo-2-0425-1B for ~4x parameters
 python dslm.py up --input allenai/OLMo-2-0425-1B --embed-dim-multiplier 2 --up-proj-multiplier 2
-python dslm.py gen --input OLMo-2-0425-1B-4.1B --prompt "The future of AI is"
+python dslm.py gen --input OLMo-2-0425-1B-5.1B --prompt "The future of AI is"
 ```
 
 #### Downscaling (Not Yet Implemented)
