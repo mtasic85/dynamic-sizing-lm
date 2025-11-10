@@ -22,6 +22,7 @@ TODO: A purely mathematical formulation for downscaling has not yet been establi
 - Qwen2.5, Qwen3 support
 - TinyLlama support
 - Phi-1.5 support
+- OLMo-2 support
 
 ### Parameter Scaling
 
@@ -74,6 +75,9 @@ python dslm.py desc --input TinyLlama/TinyLlama_v1.1
 
 # Describe Phi-1.5 model
 python dslm.py desc --input microsoft/phi-1_5
+
+# Describe OLMo-2-0425-1B model
+python dslm.py desc --input allenai/OLMo-2-0425-1B
 ```
 
 #### Text Generation
@@ -98,6 +102,9 @@ python dslm.py gen --input TinyLlama/TinyLlama_v1.1 --prompt "The future of AI i
 
 # Generate text with Phi-1.5
 python dslm.py gen --input microsoft/phi-1_5 --prompt "The future of AI is"
+
+# Generate text with OLMo-2-0425-1B
+python dslm.py gen --input allenai/OLMo-2-0425-1B --prompt "The future of AI is"
 
 # Generate text with custom sampling parameters
 python dslm.py gen --input Qwen/Qwen3-0.6B --n-predict 50 --temperature 0.8 --top-k 40 --top-p 0.9 --prompt "The future of AI"
@@ -130,7 +137,11 @@ python dslm.py gen --input TinyLlama_v1.1-4.1B --prompt "The future of AI is"
 
 # Upscale Phi-1.5 for ~4x parameters
 python dslm.py up --input microsoft/phi-1_5 --embed-dim-multiplier 2 --up-proj-multiplier 2
-python dslm.py gen --input phi-1_5-5.2B --prompt "The future of AI is"
+python dslm.py gen --input phi-1_5-5.3B --prompt "The future of AI is"
+
+# Upscale OLMo-2-0425-1B for ~4x parameters
+python dslm.py up --input allenai/OLMo-2-0425-1B --embed-dim-multiplier 2 --up-proj-multiplier 2
+python dslm.py gen --input OLMo-2-0425-1B-4.1B --prompt "The future of AI is"
 ```
 
 #### Downscaling (Not Yet Implemented)
