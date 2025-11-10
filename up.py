@@ -8,13 +8,19 @@ import torch
 from transformers import AutoModelForCausalLM
 from typing import Optional
 
-from common import (  # type: ignore
+from clone import (  # type: ignore
     clone_matrix,
     clone_linear_layer,
     clone_rms_norm,
     clone_layer_norm,
-    clone_qkv_layer,
     rename_config,
+    clone_qwen_attention,
+    clone_llama_attention,
+    clone_smollm_attention,
+    clone_phi_attention,
+    clone_olmo_attention,
+)
+from common import (  # type: ignore
     count_parameters,
     format_parameter_count,
     get_model_size_suffix,
@@ -508,113 +514,6 @@ def clone_olmo_2(
     clone_rms_norm(dst_network.model.norm, src_network.model.norm)
     clone_linear_layer(dst_network.lm_head, src_network.lm_head)
     return dst_network
-
-
-#
-# utility cloning functions
-#
-def clone_qwen_attention(dst_layer, src_layer, snr_db=None):
-    """
-    Clones the attention layer for Qwen models.
-    """
-    # Handle Qwen attention layers
-    clone_qkv_layer(
-        dst_layer.q_proj,
-        src_layer.q_proj,
-        dst_layer.config.num_attention_heads,
-        src_layer.config.num_attention_heads,
-        snr_db=snr_db,
-    )
-    clone_qkv_layer(
-        dst_layer.k_proj,
-        src_layer.k_proj,
-        dst_layer.config.num_key_value_heads,
-        src_layer.config.num_key_value_heads,
-        snr_db=snr_db,
-    )
-    clone_qkv_layer(
-        dst_layer.v_proj,
-        src_layer.v_proj,
-        dst_layer.config.num_key_value_heads,
-        src_layer.config.num_key_value_heads,
-        snr_db=snr_db,
-    )
-    clone_linear_layer(dst_layer.o_proj, src_layer.o_proj, snr_db=snr_db)
-
-    # Clone Qwen-specific norms if they exist
-    if hasattr(src_layer, "q_norm") and hasattr(dst_layer, "q_norm"):
-        clone_rms_norm(dst_layer.q_norm, src_layer.q_norm)
-
-    if hasattr(src_layer, "k_norm") and hasattr(dst_layer, "k_norm"):
-        clone_rms_norm(dst_layer.k_norm, src_layer.k_norm)
-
-
-def clone_llama_attention(dst_layer, src_layer, snr_db=None):
-    """
-    Clones the attention layer for Llama models.
-    """
-    clone_qkv_layer(
-        dst_layer.q_proj,
-        src_layer.q_proj,
-        dst_layer.config.num_attention_heads,
-        src_layer.config.num_attention_heads,
-        snr_db=snr_db,
-    )
-
-    clone_qkv_layer(
-        dst_layer.k_proj,
-        src_layer.k_proj,
-        dst_layer.config.num_key_value_heads,
-        src_layer.config.num_key_value_heads,
-        snr_db=snr_db,
-    )
-
-    clone_qkv_layer(
-        dst_layer.v_proj,
-        src_layer.v_proj,
-        dst_layer.config.num_key_value_heads,
-        src_layer.config.num_key_value_heads,
-        snr_db=snr_db,
-    )
-
-    clone_linear_layer(dst_layer.o_proj, src_layer.o_proj, snr_db=snr_db)
-
-
-def clone_smollm_attention(dst_layer, src_layer, snr_db=None):
-    """
-    Clones attention layer for SmolLM models.
-    """
-    clone_linear_layer(dst_layer.q_proj, src_layer.q_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.k_proj, src_layer.k_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.v_proj, src_layer.v_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.o_proj, src_layer.o_proj, snr_db=snr_db)
-
-
-def clone_phi_attention(dst_layer, src_layer, snr_db=None):
-    """
-    Clones the attention layer for Phi models.
-    """
-    clone_linear_layer(dst_layer.q_proj, src_layer.q_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.k_proj, src_layer.k_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.v_proj, src_layer.v_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.dense, src_layer.dense, snr_db=snr_db)
-
-
-def clone_olmo_attention(dst_layer, src_layer, snr_db=None):
-    """
-    Clones the attention layer for OLMo-2 models.
-    """
-    clone_linear_layer(dst_layer.q_proj, src_layer.q_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.k_proj, src_layer.k_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.v_proj, src_layer.v_proj, snr_db=snr_db)
-    clone_linear_layer(dst_layer.o_proj, src_layer.o_proj, snr_db=snr_db)
-
-    # Clone Q/K norms if they exist
-    if hasattr(src_layer, "q_norm") and hasattr(dst_layer, "q_norm"):
-        clone_rms_norm(dst_layer.q_norm, src_layer.q_norm)
-
-    if hasattr(src_layer, "k_norm") and hasattr(dst_layer, "k_norm"):
-        clone_rms_norm(dst_layer.k_norm, src_layer.k_norm)
 
 
 # Registry of supported cloning functions
