@@ -8,7 +8,7 @@ import torch
 from transformers import AutoModelForCausalLM
 from typing import Optional
 
-from clone import (  # type: ignore
+from hyper_clone import (  # type: ignore
     clone_matrix,
     clone_linear_layer,
     clone_rms_norm,
