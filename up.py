@@ -21,6 +21,9 @@ from common import (  # type: ignore
 )
 
 
+#
+# model upscale/cloning functions
+#
 def upscale_model(
     model_path: str,
     embed_dim_multiplier: int,
@@ -47,17 +50,23 @@ def upscale_model(
         model_path, trust_remote_code=True, dtype=torch.float32
     )
 
-    # Determine cloning function based on config type
-    config_type = str(type(src_model.config)).split(".")[-1][:-2].strip()
+    # Determine cloning function based on architecture
+    if (
+        not hasattr(src_model.config, "architectures")
+        or not src_model.config.architectures
+    ):
+        raise ValueError("Config does not have architectures field")
 
-    print(f"Detected model type: {config_type}")
+    architecture = src_model.config.architectures[0]
 
-    if config_type not in REGISTERED_CLONING_FUNCTIONS:
+    print(f"Detected architecture: {architecture}")
+
+    if architecture not in ARCHITECTURE_TO_CLONE_FUNCTION:
         raise ValueError(
-            f"Model type {config_type} is not supported. Supported types: {list(REGISTERED_CLONING_FUNCTIONS.keys())}"
+            f"Architecture {architecture} is not supported. Supported architectures: {list(ARCHITECTURE_TO_CLONE_FUNCTION.keys())}"
         )
 
-    cloning_function = REGISTERED_CLONING_FUNCTIONS[config_type]
+    cloning_function = ARCHITECTURE_TO_CLONE_FUNCTION[architecture]
     print(f"Using cloning function: {cloning_function.__name__}")
 
     # Clone the model
@@ -374,7 +383,7 @@ def clone_llama(
     return dst_network
 
 
-def clone_phi_1(
+def clone_phi(
     src_network,
     embedding_dim_multiplier: int = 1,
     up_project_multiplier: int = 1,
@@ -428,6 +437,82 @@ def clone_phi_1(
     return dst_network
 
 
+def clone_olmo_2(
+    src_network,
+    embedding_dim_multiplier: int = 1,
+    up_project_multiplier: int = 1,
+    **kwargs,
+):
+    """
+    Cloning function for OLMo-2 models.
+    """
+    snr_db = kwargs.get("snr_db", None)
+
+    # Set the destination network config
+    config = copy.deepcopy(src_network.config)
+    config.hidden_size = embedding_dim_multiplier * config.hidden_size
+    config.intermediate_size = up_project_multiplier * config.intermediate_size
+    config.num_attention_heads = embedding_dim_multiplier * config.num_attention_heads
+    config.num_key_value_heads = embedding_dim_multiplier * config.num_key_value_heads
+    config.tie_word_embeddings = False
+
+    # Rename config according to expansion factors
+    config = rename_config(config, embedding_dim_multiplier, up_project_multiplier)
+
+    # Create destination network
+    dst_network = type(src_network)._from_config(config)
+
+    # Clone embeddings
+    dst_network.model.embed_tokens.weight.data = clone_matrix(
+        dst_network.model.embed_tokens.weight.data.shape,
+        src_network.model.embed_tokens.weight.data,
+        normalize=False,
+    )
+
+    # Clone each layer
+    for dst_layer, src_layer in zip(dst_network.model.layers, src_network.model.layers):
+        clone_rms_norm(
+            dst_layer.post_attention_layernorm,
+            src_layer.post_attention_layernorm,
+        )
+
+        clone_rms_norm(
+            dst_layer.post_feedforward_layernorm,
+            src_layer.post_feedforward_layernorm,
+        )
+
+        clone_olmo_attention(
+            dst_layer.self_attn,
+            src_layer.self_attn,
+            snr_db=snr_db,
+        )
+
+        clone_linear_layer(
+            dst_layer.mlp.gate_proj,
+            src_layer.mlp.gate_proj,
+            snr_db=snr_db,
+        )
+
+        clone_linear_layer(
+            dst_layer.mlp.up_proj,
+            src_layer.mlp.up_proj,
+            snr_db=snr_db,
+        )
+
+        clone_linear_layer(
+            dst_layer.mlp.down_proj,
+            src_layer.mlp.down_proj,
+            snr_db=snr_db,
+        )
+
+    clone_rms_norm(dst_network.model.norm, src_network.model.norm)
+    clone_linear_layer(dst_network.lm_head, src_network.lm_head)
+    return dst_network
+
+
+#
+# utility cloning functions
+#
 def clone_qwen_attention(dst_layer, src_layer, snr_db=None):
     """
     Clones the attention layer for Qwen models.
@@ -532,86 +617,13 @@ def clone_olmo_attention(dst_layer, src_layer, snr_db=None):
         clone_rms_norm(dst_layer.k_norm, src_layer.k_norm)
 
 
-def clone_olmo_2(
-    src_network,
-    embedding_dim_multiplier: int = 1,
-    up_project_multiplier: int = 1,
-    **kwargs,
-):
-    """
-    Cloning function for OLMo-2 models.
-    """
-    snr_db = kwargs.get("snr_db", None)
-
-    # Set the destination network config
-    config = copy.deepcopy(src_network.config)
-    config.hidden_size = embedding_dim_multiplier * config.hidden_size
-    config.intermediate_size = up_project_multiplier * config.intermediate_size
-    config.num_attention_heads = embedding_dim_multiplier * config.num_attention_heads
-    config.num_key_value_heads = embedding_dim_multiplier * config.num_key_value_heads
-    config.tie_word_embeddings = False
-
-    # Rename config according to expansion factors
-    config = rename_config(config, embedding_dim_multiplier, up_project_multiplier)
-
-    # Create destination network
-    dst_network = type(src_network)._from_config(config)
-
-    # Clone embeddings
-    dst_network.model.embed_tokens.weight.data = clone_matrix(
-        dst_network.model.embed_tokens.weight.data.shape,
-        src_network.model.embed_tokens.weight.data,
-        normalize=False,
-    )
-
-    # Clone each layer
-    for dst_layer, src_layer in zip(dst_network.model.layers, src_network.model.layers):
-        clone_rms_norm(
-            dst_layer.post_attention_layernorm,
-            src_layer.post_attention_layernorm,
-        )
-
-        clone_rms_norm(
-            dst_layer.post_feedforward_layernorm,
-            src_layer.post_feedforward_layernorm,
-        )
-
-        clone_olmo_attention(
-            dst_layer.self_attn,
-            src_layer.self_attn,
-            snr_db=snr_db,
-        )
-
-        clone_linear_layer(
-            dst_layer.mlp.gate_proj,
-            src_layer.mlp.gate_proj,
-            snr_db=snr_db,
-        )
-
-        clone_linear_layer(
-            dst_layer.mlp.up_proj,
-            src_layer.mlp.up_proj,
-            snr_db=snr_db,
-        )
-
-        clone_linear_layer(
-            dst_layer.mlp.down_proj,
-            src_layer.mlp.down_proj,
-            snr_db=snr_db,
-        )
-
-    clone_rms_norm(dst_network.model.norm, src_network.model.norm)
-    clone_linear_layer(dst_network.lm_head, src_network.lm_head)
-    return dst_network
-
-
 # Registry of supported cloning functions
-REGISTERED_CLONING_FUNCTIONS = {
-    "Qwen2Config": clone_qwen2_5,
-    "Qwen3Config": clone_qwen3,
-    "SmolLM2Config": clone_smollm2,
-    "SmolLM3Config": clone_smollm3,
-    "LlamaConfig": clone_llama,
-    "PhiConfig": clone_phi_1,
-    "Olmo2Config": clone_olmo_2,
+ARCHITECTURE_TO_CLONE_FUNCTION = {
+    "Qwen2ForCausalLM": clone_qwen2_5,
+    "Qwen3ForCausalLM": clone_qwen3,
+    "SmolLM2ForCausalLM": clone_smollm2,
+    "SmolLM3ForCausalLM": clone_smollm3,
+    "LlamaForCausalLM": clone_llama,
+    "PhiForCausalLM": clone_phi,
+    "Olmo2ForCausalLM": clone_olmo_2,
 }

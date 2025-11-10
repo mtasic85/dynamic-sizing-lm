@@ -21,6 +21,7 @@ TODO: A purely mathematical formulation for downscaling has not yet been establi
 - SmolLM2, SmolLM3 support
 - Qwen2.5, Qwen3 support
 - TinyLlama support
+- OpenLlama support
 - Phi-1.5 support
 - OLMo-2 support
 
@@ -78,6 +79,9 @@ python dslm.py desc --input microsoft/phi-1_5
 
 # Describe OLMo-2-0425-1B model
 python dslm.py desc --input allenai/OLMo-2-0425-1B
+
+# Describe OpenLlama 3B v2 model
+python dslm.py desc --input openlm-research/open_llama_3b_v2
 ```
 
 #### Text Generation
@@ -105,6 +109,9 @@ python dslm.py gen --input microsoft/phi-1_5 --prompt "The future of AI is"
 
 # Generate text with OLMo-2-0425-1B
 python dslm.py gen --input allenai/OLMo-2-0425-1B --prompt "The future of AI is"
+
+# Generate text with OpenLlama 3B v2
+python dslm.py gen --input openlm-research/open_llama_3b_v2 --prompt "The future of AI is"
 
 # Generate text with custom sampling parameters
 python dslm.py gen --input Qwen/Qwen3-0.6B --n-predict 50 --temperature 0.8 --top-k 40 --top-p 0.9 --prompt "The future of AI"
