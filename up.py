@@ -21,18 +21,6 @@ from common import (  # type: ignore
 )
 
 
-# Registry of supported cloning functions
-REGISTERED_CLONING_FUNCTIONS = {
-    "Qwen2Config": clone_qwen2_5,
-    "Qwen3Config": clone_qwen3,
-    "SmolLM2Config": clone_smollm2,
-    "SmolLM3Config": clone_smollm3,
-    "LlamaConfig": clone_llama,
-    "PhiConfig": clone_phi_1,
-    "Olmo2Config": clone_olmo_2,
-}
-
-
 def upscale_model(
     model_path: str,
     embed_dim_multiplier: int,
@@ -54,6 +42,7 @@ def upscale_model(
         Tuple of (upscaled_model, output_path)
     """
     print(f"Loading source model: {model_path}")
+
     src_model = AutoModelForCausalLM.from_pretrained(
         model_path, trust_remote_code=True, dtype=torch.float32
     )
@@ -626,3 +615,15 @@ def clone_olmo_2(
     clone_rms_norm(dst_network.model.norm, src_network.model.norm)
     clone_linear_layer(dst_network.lm_head, src_network.lm_head)
     return dst_network
+
+
+# Registry of supported cloning functions
+REGISTERED_CLONING_FUNCTIONS = {
+    "Qwen2Config": clone_qwen2_5,
+    "Qwen3Config": clone_qwen3,
+    "SmolLM2Config": clone_smollm2,
+    "SmolLM3Config": clone_smollm3,
+    "LlamaConfig": clone_llama,
+    "PhiConfig": clone_phi_1,
+    "Olmo2Config": clone_olmo_2,
+}
