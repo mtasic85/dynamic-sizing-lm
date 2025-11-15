@@ -1,5 +1,7 @@
-torch
-transformers
 uv
 ty
 ruff
+torch
+transformers
+datasets
+accelerate
