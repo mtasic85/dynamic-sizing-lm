@@ -22,198 +22,195 @@ from down import downscale_model  # type: ignore
 
 def cmd_desc(args):
     """Handle the 'desc' subcommand for describing models."""
-    try:
-        print(f"Loading model: {args.input}")
-        model = AutoModelForCausalLM.from_pretrained(
-            args.input, trust_remote_code=True, dtype=torch.float32
-        )
+    print(f"Loading model: {args.input}")
+    model = AutoModelForCausalLM.from_pretrained(
+        args.input, trust_remote_code=True, dtype=torch.float32
+    )
 
-        # Print the model architecture
-        print(model)
+    # Print the model architecture
+    print(model)
 
-        # Print total parameter count
-        param_count = count_parameters(model)
-        print(f"\nTotal parameters: {format_parameter_count(param_count)}")
-    except Exception as e:
-        print(f"Error describing model: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Print total parameter count
+    param_count = count_parameters(model)
+    print(f"\nTotal parameters: {format_parameter_count(param_count)}")
 
 
 def cmd_gen(args):
     """Handle the 'gen' subcommand for text generation."""
-    try:
-        print(f"Loading model: {args.input}")
-        model = AutoModelForCausalLM.from_pretrained(
-            args.input, trust_remote_code=True, dtype=torch.float32
+    print(f"Loading model: {args.input}")
+    model = AutoModelForCausalLM.from_pretrained(
+        args.input, trust_remote_code=True, dtype=torch.float32
+    )
+    tokenizer = AutoTokenizer.from_pretrained(args.input)
+
+    # Print the model architecture
+    print(model)
+
+    # Print total parameter count
+    param_count = count_parameters(model)
+    print(f"\nTotal parameters: {format_parameter_count(param_count)}")
+
+    # Move model to appropriate device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)  # type: ignore
+    print(f"Using device: {device}")
+
+    # Prepare input
+    prompt = args.prompt or "The capital of France is"
+    print(f"Max tokens: {args.n_predict}")
+
+    # Get generation parameters (defaults are set in argument parser)
+    temperature = args.temperature
+    top_k = args.top_k
+    top_p = args.top_p
+
+    print(f"Temperature: {temperature}")
+    print(f"Top-k: {top_k}")
+    print(f"Top-p: {top_p}")
+
+    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # Determine if we should use sampling
+    do_sample = temperature > 0.0 or top_p < 1.0 or top_k is not None
+
+    # Print initial prompt
+    print(prompt, end="", flush=True)
+
+    # Create streamer for incremental output
+    streamer = TextStreamer(tokenizer, skip_prompt=True)
+
+    # Generate with streaming
+    with torch.no_grad():
+        model.generate(
+            inputs["input_ids"],
+            attention_mask=inputs.get("attention_mask"),
+            max_new_tokens=args.n_predict,
+            num_return_sequences=1,
+            do_sample=do_sample,
+            temperature=temperature if do_sample else None,
+            top_k=top_k if do_sample else None,
+            top_p=top_p if do_sample else None,
+            pad_token_id=tokenizer.eos_token_id,
+            streamer=streamer,
         )
-        tokenizer = AutoTokenizer.from_pretrained(args.input)
-
-        # Print the model architecture
-        print(model)
-
-        # Print total parameter count
-        param_count = count_parameters(model)
-        print(f"\nTotal parameters: {format_parameter_count(param_count)}")
-
-        # Move model to appropriate device
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = model.to(device)  # type: ignore
-        print(f"Using device: {device}")
-
-        # Prepare input
-        prompt = args.prompt or "The capital of France is"
-        print(f"Max tokens: {args.n_predict}")
-
-        # Get generation parameters (defaults are set in argument parser)
-        temperature = args.temperature
-        top_k = args.top_k
-        top_p = args.top_p
-
-        print(f"Temperature: {temperature}")
-        print(f"Top-k: {top_k}")
-        print(f"Top-p: {top_p}")
-
-        inputs = tokenizer(prompt, return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-
-        # Determine if we should use sampling
-        do_sample = temperature > 0.0 or top_p < 1.0 or top_k is not None
-
-        # Print initial prompt
-        print(prompt, end="", flush=True)
-
-        # Create streamer for incremental output
-        streamer = TextStreamer(tokenizer, skip_prompt=True)
-
-        # Generate with streaming
-        with torch.no_grad():
-            model.generate(
-                inputs["input_ids"],
-                attention_mask=inputs.get("attention_mask"),
-                max_new_tokens=args.n_predict,
-                num_return_sequences=1,
-                do_sample=do_sample,
-                temperature=temperature if do_sample else None,
-                top_k=top_k if do_sample else None,
-                top_p=top_p if do_sample else None,
-                pad_token_id=tokenizer.eos_token_id,
-                streamer=streamer,
-            )
-    except Exception as e:
-        print(f"Error during generation: {e}", file=sys.stderr)
-        sys.exit(1)
 
 
 def cmd_up(args):
     """Handle the 'up' subcommand for upscaling models."""
+    print(f"Upscaling model: {args.input}")
+    print(f"Embedding dimension multiplier: {args.embed_dim_multiplier}")
+    print(f"Up projection multiplier: {args.up_proj_multiplier}")
+
+    # Validate multipliers are integers
+    if not isinstance(args.embed_dim_multiplier, int) or args.embed_dim_multiplier < 1:
+        raise ValueError("embed_dim_multiplier must be a positive integer")
+
+    if not isinstance(args.up_proj_multiplier, int) or args.up_proj_multiplier < 1:
+        raise ValueError("up_proj_multiplier must be a positive integer")
+
+    # Load and describe input model
+    print("\n" + "=" * 60)
+    print("INPUT MODEL DESCRIPTION")
+    print("=" * 60)
+    input_model = AutoModelForCausalLM.from_pretrained(
+        args.input, trust_remote_code=True, dtype=torch.float32
+    )
+    print(input_model)
+    input_param_count = count_parameters(input_model)
+    print(
+        f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
+    )
+
+    # Upscale the model
+    print("\n" + "=" * 60)
+    print("UPSCALING...")
+    print("=" * 60)
+    upscaled_model, output_path = upscale_model(
+        model_path=args.input,
+        embed_dim_multiplier=args.embed_dim_multiplier,
+        up_proj_multiplier=args.up_proj_multiplier,
+        output_path=args.output,
+        snr_db=getattr(args, "snr_db", None),
+    )
+
+    # Save the model
+    print(f"Saving upscaled model to: {output_path}")
+    upscaled_model.save_pretrained(output_path)
+
+    # Also save tokenizer if it exists
     try:
-        print(f"Upscaling model: {args.input}")
-        print(f"Embedding dimension multiplier: {args.embed_dim_multiplier}")
-        print(f"Up projection multiplier: {args.up_proj_multiplier}")
-
-        # Validate multipliers are integers
-        if (
-            not isinstance(args.embed_dim_multiplier, int)
-            or args.embed_dim_multiplier < 1
-        ):
-            raise ValueError("embed_dim_multiplier must be a positive integer")
-
-        if not isinstance(args.up_proj_multiplier, int) or args.up_proj_multiplier < 1:
-            raise ValueError("up_proj_multiplier must be a positive integer")
-
-        # Load and describe input model
-        print("\n" + "=" * 60)
-        print("INPUT MODEL DESCRIPTION")
-        print("=" * 60)
-        input_model = AutoModelForCausalLM.from_pretrained(
-            args.input, trust_remote_code=True, dtype=torch.float32
-        )
-        print(input_model)
-        input_param_count = count_parameters(input_model)
-        print(
-            f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
-        )
-
-        # Upscale the model
-        print("\n" + "=" * 60)
-        print("UPSCALING...")
-        print("=" * 60)
-        upscaled_model, output_path = upscale_model(
-            model_path=args.input,
-            embed_dim_multiplier=args.embed_dim_multiplier,
-            up_proj_multiplier=args.up_proj_multiplier,
-            output_path=args.output,
-            snr_db=getattr(args, "snr_db", None),
-        )
-
-        # Save the model
-        print(f"Saving upscaled model to: {output_path}")
-        upscaled_model.save_pretrained(output_path)
-
-        # Also save tokenizer if it exists
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(args.input)
-            tokenizer.save_pretrained(output_path)
-            print("Tokenizer saved successfully")
-        except Exception as e:
-            print(f"Warning: Could not save tokenizer: {e}")
-
-        # Load and describe output model
-        print("\n" + "=" * 60)
-        print("OUTPUT MODEL DESCRIPTION")
-        print("=" * 60)
-        output_model = AutoModelForCausalLM.from_pretrained(
-            output_path, trust_remote_code=True, dtype=torch.float32
-        )
-        print(output_model)
-        output_param_count = count_parameters(output_model)
-        print(
-            f"\nOutput model total parameters: {format_parameter_count(output_param_count)}"
-        )
-
-        print("\n" + "=" * 60)
-        print("UPSCALING COMPLETED SUCCESSFULLY!")
-        print("=" * 60)
-
+        tokenizer = AutoTokenizer.from_pretrained(args.input)
+        tokenizer.save_pretrained(output_path)
+        print("Tokenizer saved successfully")
     except Exception as e:
-        print(f"Error during upscaling: {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"Warning: Could not save tokenizer: {e}")
+
+    # Load and describe output model
+    print("\n" + "=" * 60)
+    print("OUTPUT MODEL DESCRIPTION")
+    print("=" * 60)
+    output_model = AutoModelForCausalLM.from_pretrained(
+        output_path, trust_remote_code=True, dtype=torch.float32
+    )
+    print(output_model)
+    output_param_count = count_parameters(output_model)
+    print(
+        f"\nOutput model total parameters: {format_parameter_count(output_param_count)}"
+    )
+
+    print("\n" + "=" * 60)
+    print("UPSCALING COMPLETED SUCCESSFULLY!")
+    print("=" * 60)
 
 
 def cmd_down(args):
     """Handle the 'down' subcommand for downscaling models."""
+    print(f"Downscaling model: {args.input}")
+
+    # Load and describe input model
+    print("\n" + "=" * 60)
+    print("INPUT MODEL DESCRIPTION")
+    print("=" * 60)
+    input_model = AutoModelForCausalLM.from_pretrained(
+        args.input, trust_remote_code=True, dtype=torch.float32
+    )
+    print(input_model)
+    input_param_count = count_parameters(input_model)
+    print(
+        f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
+    )
+
+    print("\n" + "=" * 60)
+    print("DOWNSCALING...")
+    print("=" * 60)
+    downscaled_model, output_path = downscale_model(
+        model_path=args.input,
+        output_path=args.output,
+        pruning_ratio=args.pruning_ratio,
+        max_seq_len=args.max_seq_len,
+    )
+
+    # Save the downscaled model
+    print(f"Saving downscaled model to: {output_path}")
+    downscaled_model.save_pretrained(output_path)  # type: ignore
+
+    # Also save tokenizer if it exists
     try:
-        print(f"Downscaling model: {args.input}")
-
-        # Load and describe input model
-        print("\n" + "=" * 60)
-        print("INPUT MODEL DESCRIPTION")
-        print("=" * 60)
-        input_model = AutoModelForCausalLM.from_pretrained(
-            args.input, trust_remote_code=True, dtype=torch.float32
-        )
-        print(input_model)
-        input_param_count = count_parameters(input_model)
-        print(
-            f"\nInput model total parameters: {format_parameter_count(input_param_count)}"
-        )
-
-        # This will raise NotImplementedError for now
-        print("\n" + "=" * 60)
-        print("DOWNSCALING...")
-        print("=" * 60)
-        downscaled_model, output_path = downscale_model(
-            model_path=args.input, output_path=args.output
-        )
-
-        # When implemented, this would save and describe the output model
-        print(f"Output path would be: {output_path}")
+        tokenizer = AutoTokenizer.from_pretrained(args.input)
+        tokenizer.save_pretrained(output_path)
+        print("Tokenizer saved successfully")
     except Exception as e:
-        if isinstance(e, NotImplementedError):
-            print(f"Downscaling not yet implemented: {e}", file=sys.stderr)
-        else:
-            print(f"Error during downscaling: {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"Warning: Could not save tokenizer: {e}")
+
+    print(f"\nModel saved to: {output_path}")
+    print(
+        f"Pruned model has approximately {format_parameter_count(count_parameters(downscaled_model))} parameters"  # type: ignore
+    )
+
+    print("\n" + "=" * 60)
+    print("DOWNSCALING COMPLETED SUCCESSFULLY!")
+    print("=" * 60)
 
 
 def main():
@@ -323,6 +320,18 @@ def main():
         "down", parents=[common_parser], help="Downscale a model (not yet implemented)"
     )
     down_parser.add_argument("-o", "--output", help="Output path for downscaled model")
+    down_parser.add_argument(
+        "--pruning-ratio",
+        type=float,
+        default=0.5,
+        help="Pruning ratio for downscaling (default: 0.5)",
+    )
+    down_parser.add_argument(
+        "--max-seq-len",
+        type=int,
+        default=4096,
+        help="Maximum sequence length for model (default: 4096)",
+    )
     down_parser.set_defaults(func=cmd_down)
 
     # Parse arguments

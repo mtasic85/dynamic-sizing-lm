@@ -1,6 +1,7 @@
 torch
 transformers
 datasets
+torch-pruning
 uv
 ty
 ruff
