@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional, Tuple
-import math
 import random
 from datasets import load_dataset
 
@@ -21,151 +20,84 @@ from common import count_parameters, format_parameter_count, get_model_size_suff
 
 # Dataset loading functions adapted from Torch-Pruning examples
 def get_calibration_data(nsamples=128, seed=0, seqlen=2048, tokenizer=None):
-    """Get calibration data from multiple datasets for realistic pruning."""
+    """Get calibration data from a datasets for realistic pruning."""
     if tokenizer is None:
         raise ValueError("Tokenizer is required for calibration data")
 
     print("Loading calibration datasets...")
-
-    all_samples = []
     random.seed(seed)
 
-    # Try to load different datasets for diverse calibration
-    datasets_tried = []
+    all_samples = []
 
-    # 1. Try WikiText-2
-    print("  Loading WikiText-2...")
-    traindata = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
-    wikitext_samples = []
-    for sample in traindata:  # type: ignore
-        if len(wikitext_samples) >= nsamples // 4:
-            break
-        text = sample["text"]  # type: ignore
-        if len(text.strip()) > 100:  # Only use substantial texts
-            wikitext_samples.append(text)
+    # Use C4 dataset with multiple languages for diverse calibration data
+    # Limit to 128 samples per language to avoid memory issues
+    languages = ["en", "es", "fr"]
+    # samples_per_language = nsamples
 
-    for text in wikitext_samples:
-        trainenc = tokenizer(text, return_tensors="pt")  # type: ignore
-        if trainenc.input_ids.shape[1] >= seqlen:
-            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
-            j = i + seqlen
-            inp = trainenc.input_ids[:, i:j]
-            tar = inp.clone()
-            tar[:, :-1] = -100
-            all_samples.append((inp, tar))
+    for lang in languages:
+        print(f"Loading C4 dataset for language: {lang}")
+        # Load C4 dataset for this language
+        dataset = load_dataset("allenai/c4", lang, split="train", streaming=True)
+        dataset_iterator = iter(dataset)
 
-    datasets_tried.append(f"WikiText-2 ({len(wikitext_samples)} samples)")
+        samples_from_lang = 0
+        # max_samples_from_lang = min(
+        #     samples_per_language, nsamples - len(all_samples)
+        # )
+        max_samples_from_lang = 64
 
-    # 2. Try C4 dataset
-    print("  Loading C4...")
-    c4_samples = []
-    # Use a smaller subset to avoid loading too much data
-    traindata = load_dataset(
-        "allenai/c4",
-        "allenai--c4",
-        data_files={"train": "en/c4-train.00000-of-01024.json.gz"},
-        split="train",
-    )
-    for i, sample in enumerate(traindata):
-        if len(c4_samples) >= nsamples // 4:
-            break
-        if i >= 1000:  # Limit iterations
-            break
-        text = sample["text"]
-        if len(text.strip()) > 200:  # Only use substantial texts
-            c4_samples.append(text)
+        for _ in range(max_samples_from_lang):
+            try:
+                sample = next(dataset_iterator)
+                # Extract text field
+                try:
+                    text = sample["text"]
+                except (KeyError, TypeError):
+                    text = str(sample)
 
-    for text in c4_samples:
-        trainenc = tokenizer(text, return_tensors="pt")  # type: ignore
-        if trainenc.input_ids.shape[1] >= seqlen:
-            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
-            j = i + seqlen
-            inp = trainenc.input_ids[:, i:j]
-            tar = inp.clone()
-            tar[:, :-1] = -100
-            all_samples.append((inp, tar))
+                # Skip empty or very short texts
+                if not text or len(text.strip()) < 2048:
+                    continue
 
-    datasets_tried.append(f"C4 ({len(c4_samples)} samples)")
+                # Tokenize the text
+                tokens = tokenizer.encode(text, add_special_tokens=False)
 
-    # 3. Math/Code samples (synthetic for now)
-    print("  Generating math/code samples...")
-    math_code_texts = [
-        "Solve the equation: ∫x² dx = x³/3 + C",
-        "def quicksort(arr): if len(arr) <= 1: return arr; pivot = arr[0]; left = [x for x in arr[1:] if x <= pivot]; right = [x for x in arr[1:] if x > pivot]; return quicksort(left) + [pivot] + quicksort(right)",
-        "The derivative of sin(x) is cos(x).",
-        "class BinaryTree: def __init__(self, value): self.value = value; self.left = None; self.right = None",
-        "Theorem: For any triangle with sides a, b, c, a² + b² = c² for right triangles.",
-        "import torch; import torch.nn as nn; class Model(nn.Module): def __init__(self): super().__init__(); self.linear = nn.Linear(10, 1)",
-        "The fundamental group of the circle is isomorphic to ℤ.",
-        "function fibonacci(n) { if (n <= 1) return n; return fibonacci(n-1) + fibonacci(n-2); }",
-        "Matrix multiplication: C[i][j] = Σ(A[i][k] * B[k][j])",
-        "The time complexity of merge sort is O(n log n).",
-    ]
+                # Filter out any None values (safety check)
+                tokens = [t for t in tokens if t is not None]
 
-    for text in math_code_texts:
-        trainenc = tokenizer(text, return_tensors="pt")  # type: ignore
-        if trainenc.input_ids.shape[1] >= seqlen:
-            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
-            j = i + seqlen
-            inp = trainenc.input_ids[:, i:j]
-            tar = inp.clone()
-            tar[:, :-1] = -100
-            all_samples.append((inp, tar))
+                # Limit tokens to first seqlen tokens
+                tokens = tokens[:seqlen]
 
-    # 4. Fill remaining samples with diverse text
-    diverse_texts = [
-        "The history of artificial intelligence began in the 1950s with the development of the first neural networks.",
-        "Climate change is one of the most pressing challenges facing humanity in the 21st century.",
-        "The human brain contains approximately 86 billion neurons, each connected to thousands of others.",
-        "Quantum computing has the potential to revolutionize cryptography and drug discovery.",
-        "The Renaissance was a period of cultural, artistic, political and economic rebirth in Europe.",
-        "Machine learning algorithms can be supervised, unsupervised, or reinforcement learning based.",
-        "The universe is approximately 13.8 billion years old according to current cosmological models.",
-        "Natural language processing combines linguistics, computer science, and artificial intelligence.",
-        "The Industrial Revolution transformed societies from agrarian to industrial economies.",
-        "Blockchain technology enables decentralized and transparent digital transactions.",
-    ]
+                # Pad if shorter than seqlen
+                if len(tokens) < seqlen:
+                    input_ids = tokens + [tokenizer.pad_token_id] * (
+                        seqlen - len(tokens)
+                    )
+                else:
+                    input_ids = tokens
 
-    while len(all_samples) < nsamples:
-        text = random.choice(diverse_texts)
-        trainenc = tokenizer(text, return_tensors="pt")  # type: ignore
-        if trainenc.input_ids.shape[1] >= seqlen:
-            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
-            j = i + seqlen
-            inp = trainenc.input_ids[:, i:j]
-            tar = inp.clone()
-            tar[:, :-1] = -100
-            all_samples.append((inp, tar))
+                # Create target_ids (next token prediction)
+                target_ids = input_ids[1:] + [tokenizer.eos_token_id]
 
-    datasets_tried.append(f"Math/Code ({len(math_code_texts)} samples)")
+                # Convert to tensors
+                input_tensor = torch.tensor(input_ids, dtype=torch.long)
+                target_tensor = torch.tensor(target_ids, dtype=torch.long)
 
-    # 4. Fill remaining samples with diverse text
-    diverse_texts = [
-        "The history of artificial intelligence began in the 1950s with the development of the first neural networks.",
-        "Climate change is one of the most pressing challenges facing humanity in the 21st century.",
-        "The human brain contains approximately 86 billion neurons, each connected to thousands of others.",
-        "Quantum computing has the potential to revolutionize cryptography and drug discovery.",
-        "The Renaissance was a period of cultural, artistic, political and economic rebirth in Europe.",
-        "Machine learning algorithms can be supervised, unsupervised, or reinforcement learning based.",
-        "The universe is approximately 13.8 billion years old according to current cosmological models.",
-        "Natural language processing combines linguistics, computer science, and artificial intelligence.",
-        "The Industrial Revolution transformed societies from agrarian to industrial economies.",
-        "Blockchain technology enables decentralized and transparent digital transactions.",
-    ]
+                all_samples.append((input_tensor, target_tensor))
+                samples_from_lang += 1
+            except StopIteration:
+                # No more samples in this language
+                break
+            except Exception:
+                # Skip problematic samples
+                continue
 
-    while len(all_samples) < nsamples:
-        text = random.choice(diverse_texts)
-        trainenc = tokenizer(text, return_tensors="pt")
-        if trainenc.input_ids.shape[1] >= seqlen:
-            i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
-            j = i + seqlen
-            inp = trainenc.input_ids[:, i:j]
-            tar = inp.clone()
-            tar[:, :-1] = -100
-            all_samples.append((inp, tar))
+        print(f"Collected {samples_from_lang} samples from {lang}")
 
-    print(f"  Datasets used: {', '.join(datasets_tried)}")
-    print(f"  Total calibration samples: {len(all_samples)}")
+    print(f"Total collected calibration dataset: {len(all_samples)} samples")
+    random.shuffle(all_samples)
+    all_samples = all_samples[:nsamples]
+    print(f"Final used calibration dataset: {len(all_samples)} samples")
     return all_samples
 
 
@@ -242,7 +174,7 @@ def downscale_model(
     max_seq_len: int = 4096,
 ) -> Tuple[torch.nn.Module, str]:
     """
-    Downscale a model using structural pruning.
+    Downscale a model using structural pruning with Wanda importance scoring.
 
     Args:
         model_path: Path or HuggingFace model identifier
@@ -253,11 +185,14 @@ def downscale_model(
     Returns:
         Tuple of (pruned_model, output_path)
     """
-    print(f"Loading model: {model_path}")
+    print("=== PRUNING PROCESS STARTED ===")
+    print(f"Step 1/10: Loading model: {model_path}")
     model = AutoModelForCausalLM.from_pretrained(
         model_path, trust_remote_code=True, low_cpu_mem_usage=True
     )
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
 
+    print("Step 2/10: Setting up device and model configuration")
     device = (
         torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     )
@@ -271,6 +206,7 @@ def downscale_model(
     print(f"Pruning ratio: {pruning_ratio}")
     print(f"Max sequence length: {max_seq_len}")
 
+    print("Step 3/10: Calculating pruning dimensions")
     # Calculate dimensions to keep
     original_hidden_size = model.config.hidden_size
     keep_hidden_size = int(original_hidden_size * pruning_ratio)
@@ -279,6 +215,7 @@ def downscale_model(
     print(f"Original hidden size: {original_hidden_size}")
     print(f"Pruned hidden size: {keep_hidden_size}")
 
+    print("Step 4/10: Calculating attention dimensions")
     # Calculate new attention dimensions
     # Get head_dim from the actual layer dimensions
     sample_layer = model.model.layers[0]
@@ -286,10 +223,6 @@ def downscale_model(
         original_q_head_dim = (
             sample_layer.self_attn.q_proj.out_features
             // model.config.num_attention_heads
-        )
-        original_kv_head_dim = (
-            sample_layer.self_attn.k_proj.out_features
-            // model.config.num_key_value_heads
         )
         # Assume head_dim is the same for q and kv
         original_head_dim = original_q_head_dim
@@ -309,10 +242,96 @@ def downscale_model(
     print(f"New num_key_value_heads: {new_num_key_value_heads}")
     print(f"Head dim: {original_head_dim}")
 
-    # Select dimensions to keep based on weight magnitude
-    embed_weight = model.model.embed_tokens.weight.data
-    # Compute importance scores for each dimension
-    importance_scores = torch.norm(embed_weight, dim=0)
+    print("Step 5/10: Computing Wanda importance scores")
+    # Use Wanda to compute importance scores
+    print("Computing Wanda importance scores...")
+
+    # Get calibration data
+    nsamples = 128
+    seqlen = model.seqlen  # Use model's sequence length for calibration
+    calibration_data = get_calibration_data(
+        nsamples=nsamples, seqlen=seqlen, tokenizer=tokenizer
+    )
+
+    # Initialize importance scores for each hidden dimension
+    importance_scores = torch.zeros(original_hidden_size, device=device)
+
+    # Hook to capture activations
+    activations = {}
+
+    def get_activation(name):
+        def hook(model, input, output):
+            activations[name] = input[0].detach()  # input[0] is the hidden states
+
+        return hook
+
+    # Register hooks for key layers
+    hooks = []
+    for i, layer in enumerate(model.model.layers):
+        # Hook the input to each layer (after input_layernorm)
+        hook = layer.register_forward_hook(get_activation(f"layer_{i}_input"))
+        hooks.append(hook)
+
+    print("Step 6/10: Running calibration and computing importance scores")
+    # Run calibration
+    print(f"Running calibration on {len(calibration_data)} samples...")
+    with torch.no_grad():
+        for sample_idx, (inp, tar) in enumerate(calibration_data):
+            if sample_idx % 10 == 0:
+                print(f"  Processing sample {sample_idx + 1}/{len(calibration_data)}")
+            # Add batch dimension
+            inp = inp.unsqueeze(0).to(device)
+            tar = tar.unsqueeze(0).to(device)
+            _ = model(inp)
+
+            # For each layer, compute Wanda scores for input projections
+            for i, layer in enumerate(model.model.layers):
+                if f"layer_{i}_input" in activations:
+                    x = activations[f"layer_{i}_input"]  # [batch, seq, hidden]
+                    # Average over batch and sequence dimensions
+                    x_mean = x.abs().mean(dim=[0, 1])  # [hidden]
+
+                    # Compute importance for different projections
+                    if hasattr(layer.self_attn, "q_proj"):
+                        # Q projection importance: |W_q| * |x|
+                        w_q = layer.self_attn.q_proj.weight.data.abs()  # [out, in]
+                        importance_q = (w_q * x_mean.unsqueeze(0)).sum(dim=0)  # [in]
+                        importance_scores += importance_q
+
+                        # K and V projections
+                        w_k = layer.self_attn.k_proj.weight.data.abs()
+                        importance_k = (w_k * x_mean.unsqueeze(0)).sum(dim=0)
+                        importance_scores += importance_k
+
+                        w_v = layer.self_attn.v_proj.weight.data.abs()
+                        importance_v = (w_v * x_mean.unsqueeze(0)).sum(dim=0)
+                        importance_scores += importance_v
+
+                    # MLP projections
+                    if hasattr(layer.mlp, "gate_proj"):
+                        w_gate = layer.mlp.gate_proj.weight.data.abs()
+                        importance_gate = (w_gate * x_mean.unsqueeze(0)).sum(dim=0)
+                        importance_scores += importance_gate
+
+                        w_up = layer.mlp.up_proj.weight.data.abs()
+                        importance_up = (w_up * x_mean.unsqueeze(0)).sum(dim=0)
+                        importance_scores += importance_up
+
+                    elif hasattr(layer.mlp, "gate_up_proj"):
+                        w_gate_up = layer.mlp.gate_up_proj.weight.data.abs()
+                        importance_gate_up = (w_gate_up * x_mean.unsqueeze(0)).sum(
+                            dim=0
+                        )
+                        importance_scores += importance_gate_up
+
+            activations.clear()  # Clear for next sample
+
+    # Remove hooks
+    for hook in hooks:
+        hook.remove()
+
+    print("Step 7/10: Selecting dimensions to keep")
+    # Select dimensions to keep based on Wanda importance scores
     _, keep_indices = torch.topk(importance_scores, keep_hidden_size)
 
     # Sort indices for consistency
@@ -320,6 +339,7 @@ def downscale_model(
 
     print(f"Keeping dimensions: {keep_indices[:10].tolist()}... (showing first 10)")
 
+    print("Step 8/10: Pruning embedding layer")
     # Prune embedding layer
     print("Pruning embedding layer...")
     new_embed = nn.Embedding(
@@ -330,10 +350,12 @@ def downscale_model(
     new_embed.weight.data = model.model.embed_tokens.weight.data[:, keep_indices]
     model.model.embed_tokens = new_embed
 
+    print("Step 9/10: Pruning decoder layers")
     # Prune each decoder layer
     print("Pruning decoder layers...")
+    total_layers = len(model.model.layers)
     for i, layer in enumerate(model.model.layers):
-        print(f"  Pruning layer {i + 1}/{len(model.model.layers)}")
+        print(f"  Pruning layer {i + 1}/{total_layers}")
 
         # Prune attention layers
         if hasattr(layer.self_attn, "q_proj"):
@@ -445,6 +467,7 @@ def downscale_model(
             layer.post_attention_layernorm, keep_indices
         )
 
+    print("Step 10/10: Pruning final components")
     # Prune final layer norm
     print("Pruning final layer norm...")
     model.model.norm = prune_layer_norm(model.model.norm, keep_indices)
@@ -469,5 +492,6 @@ def downscale_model(
     print(
         f"Pruning completed. New model size: {format_parameter_count(count_parameters(model))}"
     )
+    print("=== PRUNING PROCESS COMPLETED ===")
 
     return model, output_path
