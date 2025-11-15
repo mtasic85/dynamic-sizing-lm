@@ -1,5 +1,6 @@
 torch
 transformers
+datasets
 uv
 ty
 ruff

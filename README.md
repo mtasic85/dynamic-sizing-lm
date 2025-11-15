@@ -10,6 +10,21 @@ This function-preserving transformation expands the hidden dimensions of the sou
 
 As a result, the upscaled LLM starts with the full accuracy of the smaller model, enabling faster convergence and improved performance through subsequent fine-tuning or continued pre-training—achieving superior results under limited computational budgets compared to training from scratch (see https://arxiv.org/html/2409.12903v2).
 
+### Parameter Scaling
+
+The HyperCloning method scales model parameters approximately as follows:
+- Hidden dimensions (embeddings, attention projections): scale with n² where n = embed_dim_multiplier
+- FFN intermediate dimensions: scale with m² where m = up_proj_multiplier
+- Total parameters ≈ original × (n² × weight_attention + m² × weight_ffn + linear_terms)
+
+For ~2x parameter increase, use asymmetric scaling like embed_dim_multiplier=1, up_proj_multiplier=2 (scales FFN quadratically while keeping attention size constant).
+
+### Upscaling Limitations
+
+- The current implementation requires `embed_dim_multiplier` and `up_proj_multiplier` to be integers; fractional values are not supported
+- Although the destination network's output is valid, it may not be perfectly aligned with the source network due to numerical precision issues
+- For attention layers, we recommend modifying only the number of attention heads while keeping `head_size` unchanged, as altering `head_size` would significantly increase implementation complexity
+
 ## Downscaling
 
 TODO: A purely mathematical formulation for downscaling has not yet been established. While a rigorous mathematical approach is not strictly required, we believe it represents the optimal path forward. By analogy, just as HyperCloning enables fast and efficient upscaling, downscaling should achieve comparable speed and efficiency. Importantly, the downscaling method must be agnostic to the upscaling technique and operate effectively on any larger transformer-based LLM, regardless of whether HyperCloning was previously applied.
@@ -27,21 +42,6 @@ TODO: A purely mathematical formulation for downscaling has not yet been establi
   - Phi-1/Phi-1.5/Phi-2
   - Llama/TinyLlama
 
-### Parameter Scaling
-
-The HyperCloning method scales model parameters approximately as follows:
-- Hidden dimensions (embeddings, attention projections): scale with n² where n = embed_dim_multiplier
-- FFN intermediate dimensions: scale with m² where m = up_proj_multiplier
-- Total parameters ≈ original × (n² × weight_attention + m² × weight_ffn + linear_terms)
-
-For ~2x parameter increase, use asymmetric scaling like embed_dim_multiplier=1, up_proj_multiplier=2 (scales FFN quadratically while keeping attention size constant).
-
-### Upscaling Limitations
-
-- The current implementation requires `embed_dim_multiplier` and `up_proj_multiplier` to be integers; fractional values are not supported
-- Although the destination network's output is valid, it may not be perfectly aligned with the source network due to numerical precision issues
-- For attention layers, we recommend modifying only the number of attention heads while keeping `head_size` unchanged, as altering `head_size` would significantly increase implementation complexity
-
 ## CLI Tool
 
 The `dslm.py` script provides a command-line interface for upscaling and downscaling language models.
@@ -51,7 +51,15 @@ The `dslm.py` script provides a command-line interface for upscaling and downsca
 Ensure you have the required dependencies installed:
 
 ```bash
-pip install -r requirements.txt
+python -m venv venv
+source venv/bin/activate
+# source venv/bin/activate.fish
+
+pip install -U uv
+
+# rm requirements.txt
+# uv pip compile -o requirements.txt requirements.in
+uv pip install -r requirements.txt --torch-backend=cpu
 ```
 
 ### Usage
@@ -146,23 +154,9 @@ python dslm.py gen --input TinyLlama_v1.1-4.1B --prompt "The future of AI is"
 
 #### Downscaling (Not Yet Implemented)
 
-Downscaling functionality is planned but not yet implemented:
+Downscaling functionality.
 
 ```bash
-# Downscale a large Qwen3 model (example - not implemented)
-python dslm.py down --input Qwen/Qwen3-1.2B --output Qwen3-0.6B
-
-# Downscale a large Qwen2.5 model (example - not implemented)
-python dslm.py down --input Qwen/Qwen2.5-1B --output Qwen2.5-0.5B
-
-# Downscale a large SmolLM3 model (example - not implemented)
-python dslm.py down --input HuggingFaceTB/SmolLM3-3B --output SmolLM3-3B
-
-# Downscale a large SmolLM2 model (example - not implemented)
-python dslm.py down --input HuggingFaceTB/SmolLM2-1.4B --output SmolLM2-360M
-
-# Downscale a large TinyLlama model (example - not implemented)
-python dslm.py down --input TinyLlama/TinyLlama_v1.1 --output TinyLlama/TinyLlama_v1.1
 ```
 
 ### Command Reference
