@@ -225,7 +225,9 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    #
     # Common arguments
+    #
     common_parser = argparse.ArgumentParser(add_help=False)
     common_parser.add_argument(
         "-i",
@@ -234,42 +236,9 @@ def main():
         help="Input model path or HuggingFace identifier",
     )
 
-    # Up command
-    up_parser = subparsers.add_parser(
-        "up", parents=[common_parser], help="Upscale a model using HyperCloning"
-    )
-    up_parser.add_argument(
-        "-o",
-        "--output",
-        help="Output path for upscaled model (auto-generated if not provided)",
-    )
-    up_parser.add_argument(
-        "-edm",
-        "--embed-dim-multiplier",
-        type=int,
-        required=True,
-        help="Integer multiplier for embedding dimensions",
-    )
-    up_parser.add_argument(
-        "-upm",
-        "--up-proj-multiplier",
-        type=int,
-        required=True,
-        help="Integer multiplier for FFN dimensions",
-    )
-    up_parser.add_argument(
-        "--snr-db", type=float, help="Signal-to-noise ratio for adding noise (optional)"
-    )
-    up_parser.set_defaults(func=cmd_up)
-
-    # Down command
-    down_parser = subparsers.add_parser(
-        "down", parents=[common_parser], help="Downscale a model (not yet implemented)"
-    )
-    down_parser.add_argument("-o", "--output", help="Output path for downscaled model")
-    down_parser.set_defaults(func=cmd_down)
-
-    # Desc command
+    #
+    # Desc
+    #
     desc_parser = subparsers.add_parser(
         "desc",
         parents=[common_parser],
@@ -277,7 +246,9 @@ def main():
     )
     desc_parser.set_defaults(func=cmd_desc)
 
-    # Gen command
+    #
+    # Gen
+    #
     gen_parser = subparsers.add_parser(
         "gen", parents=[common_parser], help="Generate text using the model"
     )
@@ -314,6 +285,45 @@ def main():
         help="Top-p sampling (default: 0.9)",
     )
     gen_parser.set_defaults(func=cmd_gen)
+
+    #
+    # Up
+    #
+    up_parser = subparsers.add_parser(
+        "up", parents=[common_parser], help="Upscale a model using HyperCloning"
+    )
+    up_parser.add_argument(
+        "-o",
+        "--output",
+        help="Output path for upscaled model (auto-generated if not provided)",
+    )
+    up_parser.add_argument(
+        "-edm",
+        "--embed-dim-multiplier",
+        type=int,
+        required=True,
+        help="Integer multiplier for embedding dimensions",
+    )
+    up_parser.add_argument(
+        "-upm",
+        "--up-proj-multiplier",
+        type=int,
+        required=True,
+        help="Integer multiplier for FFN dimensions",
+    )
+    up_parser.add_argument(
+        "--snr-db", type=float, help="Signal-to-noise ratio for adding noise (optional)"
+    )
+    up_parser.set_defaults(func=cmd_up)
+
+    #
+    # Down
+    #
+    down_parser = subparsers.add_parser(
+        "down", parents=[common_parser], help="Downscale a model (not yet implemented)"
+    )
+    down_parser.add_argument("-o", "--output", help="Output path for downscaled model")
+    down_parser.set_defaults(func=cmd_down)
 
     # Parse arguments
     args = parser.parse_args()
